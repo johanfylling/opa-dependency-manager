@@ -39,7 +39,7 @@ func init() {
 }
 
 func doAddDependency(location string, namespace string, version string, projectPath string) error {
-	project, err := proj.ReadProjectFromFile(projectPath)
+	project, err := proj.ReadProjectFromFile(projectPath, false)
 	if err != nil {
 		return err
 	}

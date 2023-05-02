@@ -6,7 +6,6 @@ import (
 	"gopkg.in/yaml.v3"
 	"net/url"
 	"os"
-	"os/exec"
 	"strings"
 	"styra.com/styrainc/odm/utils"
 )
@@ -23,8 +22,9 @@ type DependencyInfo struct {
 }
 
 type Dependency struct {
-	DependencyInfo `yaml:",inline"`
-	Location       string `yaml:"-"`
+	DependencyInfo         `yaml:",inline"`
+	Location               string       `yaml:"-"`
+	TransitiveDependencies Dependencies `yaml:"-"`
 }
 
 type Dependencies map[string]Dependency
@@ -71,7 +71,7 @@ func (d Dependency) Update(rootDir string) error {
 		id = fmt.Sprintf("%x", h.Sum(nil))
 	}
 
-	sourceDir := fmt.Sprintf("%s/.", d.Location)
+	sourceDir := d.Location //fmt.Sprintf("%s/.", d.Location)
 	if strings.HasPrefix(d.Location, "file:/") {
 		u, err := url.Parse(d.Location)
 		if err != nil {
@@ -85,18 +85,22 @@ func (d Dependency) Update(rootDir string) error {
 		return err
 	}
 
-	if err := os.Mkdir(targetDir, 0755); err != nil {
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return err
 	}
 
-	if err := exec.Command("cp", "-a", sourceDir, targetDir).Run(); err != nil {
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory %s: %w", targetDir, err)
+	}
+	// Ignore empty files, as an empty module will break the 'opa refactor' command
+	if err := utils.CopyAll(sourceDir, targetDir, []string{".opa"}, true); err != nil {
 		return err
 	}
 
 	if d.Namespace != "" {
 		mapping := fmt.Sprintf("data:data.%s", d.Namespace)
-		if err := exec.Command("opa", "refactor", "move", "-w", "-p", mapping, targetDir).Run(); err != nil {
-			return err
+		if err := utils.RunCommand("opa", "refactor", "move", "-w", "-p", mapping, targetDir); err != nil {
+			return fmt.Errorf("failed to refactor namespace %s: %w", d.Namespace, err)
 		}
 	}
 
@@ -113,11 +117,15 @@ func (p *Project) SetDependency(location string, info DependencyInfo) {
 	}
 }
 
-func ReadProjectFromFile(path string) (*Project, error) {
+func ReadProjectFromFile(path string, allowMissing bool) (*Project, error) {
 	path = normalizeProjectPath(path)
 
 	if !utils.FileExists(path) {
-		return NewProject(), nil
+		if allowMissing {
+			return NewProject(), nil
+		} else {
+			return nil, fmt.Errorf("project file %s does not exist", path)
+		}
 	}
 
 	data, err := os.ReadFile(path)
