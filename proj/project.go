@@ -4,8 +4,10 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"gopkg.in/yaml.v3"
+	"net/url"
 	"os"
 	"os/exec"
+	"strings"
 	"styra.com/styrainc/odm/utils"
 )
 
@@ -70,6 +72,13 @@ func (d Dependency) Update(rootDir string) error {
 	}
 
 	sourceDir := fmt.Sprintf("%s/.", d.Location)
+	if strings.HasPrefix(d.Location, "file:/") {
+		u, err := url.Parse(d.Location)
+		if err != nil {
+			return err
+		}
+		sourceDir = strings.TrimPrefix(u.Path, "/")
+	}
 	targetDir := fmt.Sprintf("%s/%s", rootDir, id)
 
 	if err := os.RemoveAll(targetDir); err != nil {
