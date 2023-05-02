@@ -99,7 +99,7 @@ func (d Dependency) Update(rootDir string) error {
 
 	if d.Namespace != "" {
 		mapping := fmt.Sprintf("data:data.%s", d.Namespace)
-		if err := utils.RunCommand("opa", "refactor", "move", "-w", "-p", mapping, targetDir); err != nil {
+		if _, err := utils.RunCommand("opa", "refactor", "move", "-w", "-p", mapping, targetDir); err != nil {
 			return fmt.Errorf("failed to refactor namespace %s: %w", d.Namespace, err)
 		}
 	}

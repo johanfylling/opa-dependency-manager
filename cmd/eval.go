@@ -1,11 +1,10 @@
 package cmd
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/spf13/cobra"
 	"os"
-	"os/exec"
+	"styra.com/styrainc/odm/utils"
 )
 
 func init() {
@@ -36,15 +35,10 @@ func doEval(args []string) error {
 	opaArgs = append(opaArgs, "eval", "-d", ".opa/dependencies")
 	opaArgs = append(opaArgs, args...)
 
-	command := exec.Command("opa", opaArgs...)
-	var outb, errb bytes.Buffer
-	command.Stdout = &outb
-	command.Stderr = &errb
-
-	if err := command.Run(); err != nil {
-		return fmt.Errorf("error running opa eval: %s", errb.String())
+	if output, err := utils.RunCommand("opa", opaArgs...); err != nil {
+		return fmt.Errorf("error running opa eval:\n %s", err)
 	} else {
-		fmt.Println(outb.String())
+		fmt.Println(output)
 	}
 
 	return nil

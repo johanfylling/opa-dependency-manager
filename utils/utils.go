@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -67,13 +68,18 @@ func contains(arr []string, str string) bool {
 	return false
 }
 
-func RunCommand(command string, args ...string) error {
+func RunCommand(command string, args ...string) (string, error) {
 	cmd := exec.Command(command, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	var outb, errb bytes.Buffer
+	cmd.Stdout = &outb
+	cmd.Stderr = &errb
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("%w", err)
+		if errb.Len() != 0 {
+			return "", fmt.Errorf("%s", errb.String())
+		} else {
+			return "", fmt.Errorf("%s", outb.String())
+		}
 	} else {
-		return nil
+		return outb.String(), nil
 	}
 }
