@@ -10,16 +10,16 @@ import (
 
 func init() {
 	var initCommand = &cobra.Command{
-		Use:   "init [folder]",
+		Use:   "init [name]",
 		Short: "Initialize a new OPA project",
 		Run: func(cmd *cobra.Command, args []string) {
-			var path string
+			path := "."
+			var name string
 			if len(args) == 1 {
-				path = args[0]
-			} else {
-				path = "."
+				name = args[0]
+				path = fmt.Sprintf("./%s", name)
 			}
-			if err := doInit(path); err != nil {
+			if err := doInit(path, name); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "%s\n", err)
 				os.Exit(1)
 			}
@@ -29,11 +29,19 @@ func init() {
 	RootCommand.AddCommand(initCommand)
 }
 
-func doInit(path string) error {
+func doInit(path string, name string) error {
 	fmt.Println("initializing OPA project")
 
 	project := proj.Project{
-		Name: "test",
+		Name: name,
+	}
+
+	if !utils.FileExists(path) {
+		if err := os.MkdirAll(path, 0755); err != nil {
+			return fmt.Errorf("error creating project directory: %s", err)
+		}
+	} else {
+		fmt.Printf("directory %s already exists, not creating new\n", path)
 	}
 
 	err := project.WriteToFile(path, false) //createProjectFile(path, project)
@@ -61,7 +69,7 @@ func createDotOpaDirectory(path string) error {
 
 	// create directory at path
 	fmt.Printf("creating directory %s\n", path)
-	err := os.Mkdir(path, 0755)
+	err := os.MkdirAll(path, 0755)
 	if err != nil {
 		//fmt.Printf("error creating .opa directory: %s\n", err)
 		return fmt.Errorf("error creating .opa directory: %s", err)
