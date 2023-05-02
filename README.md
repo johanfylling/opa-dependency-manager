@@ -35,3 +35,10 @@ odm dep path/to/dependency -n mynamespace
 ```bash
 odm update
 ```
+
+### Evaluating policies
+
+E.g.:
+```bash
+odm eval -- -d policy.rego 'data.main.allow'
+```
