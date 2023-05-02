@@ -1,0 +1,24 @@
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+odm
+
+# Go
+*.test
+*.out
+go.work
+
+# IntelliJ
+.idea
+out/
+*.iml
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
