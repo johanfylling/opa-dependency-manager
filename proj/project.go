@@ -61,7 +61,7 @@ func (ds *Dependencies) MarshalYAML() (interface{}, error) {
 	return depMap, nil
 }
 
-func (d Dependency) Update(rootDir string) error {
+func (d *Dependency) Update(rootDir string) error {
 	var id string
 	if d.Namespace != "" {
 		id = d.Namespace
@@ -95,6 +95,23 @@ func (d Dependency) Update(rootDir string) error {
 	// Ignore empty files, as an empty module will break the 'opa refactor' command
 	if err := utils.CopyAll(sourceDir, targetDir, []string{".opa"}, true); err != nil {
 		return err
+	}
+
+	transitiveProjectFile := fmt.Sprintf("%s/opa.project", targetDir)
+	if utils.FileExists(transitiveProjectFile) {
+		transitiveProject, err := ReadProjectFromFile(transitiveProjectFile, false)
+		if err != nil {
+			return err
+		}
+
+		transitiveRootDir := fmt.Sprintf("%s/_transitive", targetDir)
+		for _, dep := range transitiveProject.Dependencies {
+			if err := dep.Update(transitiveRootDir); err != nil {
+				return err
+			}
+		}
+
+		d.TransitiveDependencies = transitiveProject.Dependencies
 	}
 
 	if d.Namespace != "" {
