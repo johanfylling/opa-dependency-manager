@@ -71,14 +71,6 @@ func (d *Dependency) Update(rootDir string) error {
 		id = fmt.Sprintf("%x", h.Sum(nil))
 	}
 
-	sourceDir := d.Location //fmt.Sprintf("%s/.", d.Location)
-	if strings.HasPrefix(d.Location, "file:/") {
-		u, err := url.Parse(d.Location)
-		if err != nil {
-			return err
-		}
-		sourceDir = strings.TrimPrefix(u.Path, "/")
-	}
 	targetDir := fmt.Sprintf("%s/%s", rootDir, id)
 
 	if err := os.RemoveAll(targetDir); err != nil {
@@ -92,8 +84,31 @@ func (d *Dependency) Update(rootDir string) error {
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
 		return fmt.Errorf("failed to create destination directory %s: %w", targetDir, err)
 	}
+
+	sourceLocation := d.Location //fmt.Sprintf("%s/.", d.Location)
+	if strings.HasPrefix(d.Location, "file:/") {
+		u, err := url.Parse(d.Location)
+		if err != nil {
+			return err
+		}
+
+		if u.Host != "" {
+			sourceLocation = fmt.Sprintf("/%s%s", u.Host, u.Path)
+		} else {
+			sourceLocation = strings.TrimPrefix(u.Path, "/")
+		}
+	}
+
+	if !utils.FileExists(sourceLocation) {
+		return fmt.Errorf("dependency %s does not exist", sourceLocation)
+	}
+
+	if !utils.IsDir(sourceLocation) && utils.GetFileName(sourceLocation) == "opa.project" {
+		sourceLocation = utils.GetParentDir(sourceLocation)
+	}
+
 	// Ignore empty files, as an empty module will break the 'opa refactor' command
-	if err := utils.CopyAll(sourceDir, targetDir, []string{".opa"}, true); err != nil {
+	if err := utils.CopyAll(sourceLocation, targetDir, []string{".opa"}, true); err != nil {
 		return err
 	}
 
