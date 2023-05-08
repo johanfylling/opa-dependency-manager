@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -32,6 +33,23 @@ func GetFileName(path string) string {
 func GetParentDir(path string) string {
 	pathComponents := strings.Split(path, "/")
 	return strings.Join(pathComponents[:len(pathComponents)-1], "/")
+}
+
+func NormalizeFilePath(path string) (string, error) {
+	if strings.HasPrefix(path, "file:/") {
+		u, err := url.Parse(path)
+		if err != nil {
+			return "", err
+		}
+
+		if u.Host != "" {
+			return fmt.Sprintf("/%s%s", u.Host, u.Path), nil
+		} else {
+			return strings.TrimPrefix(u.Path, "/"), nil
+		}
+	}
+
+	return path, nil
 }
 
 func CopyAll(src string, dstDir string, exclude []string, ignoreEmptyFiles bool) error {

@@ -4,15 +4,14 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"gopkg.in/yaml.v3"
-	"net/url"
 	"os"
-	"strings"
 	"styra.com/styrainc/odm/utils"
 )
 
 type Project struct {
 	Name         string       `yaml:"name,omitempty"`
 	Version      string       `yaml:"version,omitempty"`
+	SourceDir    string       `yaml:"source,omitempty"`
 	Dependencies Dependencies `yaml:"dependencies,omitempty"`
 }
 
@@ -85,18 +84,9 @@ func (d *Dependency) Update(rootDir string) error {
 		return fmt.Errorf("failed to create destination directory %s: %w", targetDir, err)
 	}
 
-	sourceLocation := d.Location //fmt.Sprintf("%s/.", d.Location)
-	if strings.HasPrefix(d.Location, "file:/") {
-		u, err := url.Parse(d.Location)
-		if err != nil {
-			return err
-		}
-
-		if u.Host != "" {
-			sourceLocation = fmt.Sprintf("/%s%s", u.Host, u.Path)
-		} else {
-			sourceLocation = strings.TrimPrefix(u.Path, "/")
-		}
+	sourceLocation, err := utils.NormalizeFilePath(d.Location)
+	if err != nil {
+		return err
 	}
 
 	if !utils.FileExists(sourceLocation) {

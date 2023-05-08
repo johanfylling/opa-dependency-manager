@@ -9,6 +9,9 @@ import (
 )
 
 func init() {
+	var sourceDir string
+	var noSource bool
+
 	var initCommand = &cobra.Command{
 		Use:   "init [name]",
 		Short: "Initialize a new OPA project",
@@ -19,21 +22,31 @@ func init() {
 				name = args[0]
 				path = fmt.Sprintf("./%s", name)
 			}
-			if err := doInit(path, name); err != nil {
+			if noSource {
+				sourceDir = ""
+			}
+			if err := doInit(path, name, sourceDir); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "%s\n", err)
 				os.Exit(1)
 			}
 		},
 	}
 
+	initCommand.Flags().StringVarP(&sourceDir, "source", "s", "src", "source directory for the project. Mutually exclusive with --no-source")
+	initCommand.Flags().BoolVarP(&noSource, "no-source", "", false, "don't assign a source directory for the project. Mutually exclusive with --source")
+
 	RootCommand.AddCommand(initCommand)
 }
 
-func doInit(path string, name string) error {
+func doInit(path string, name string, sourceDir string) error {
 	fmt.Println("initializing OPA project")
 
 	project := proj.Project{
 		Name: name,
+	}
+
+	if sourceDir != "" {
+		project.SourceDir = sourceDir
 	}
 
 	if !utils.FileExists(path) {
