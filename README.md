@@ -1,4 +1,4 @@
-# OPA Dependency Managed (ODM)
+# OPA Dependency Manager (ODM)
 
 ODM is a tool for managing dependencies for [Open Policy Agent](https://www.openpolicyagent.org/) (OPA) projects.
 
