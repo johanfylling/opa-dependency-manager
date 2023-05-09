@@ -3,8 +3,10 @@ package proj
 import (
 	"crypto/sha256"
 	"fmt"
+	"github.com/go-git/go-git/v5"
 	"gopkg.in/yaml.v3"
 	"os"
+	"strings"
 	"styra.com/styrainc/odm/utils"
 )
 
@@ -84,6 +86,20 @@ func (d *Dependency) Update(rootDir string) error {
 		return fmt.Errorf("failed to create destination directory %s: %w", targetDir, err)
 	}
 
+	if strings.HasPrefix(d.Location, "git+") {
+		if err := d.updateGit(targetDir); err != nil {
+			return err
+		}
+	} else {
+		if err := d.updateLocal(targetDir); err != nil {
+			return err
+		}
+	}
+
+	return d.updateTransitive(targetDir)
+}
+
+func (d *Dependency) updateLocal(targetDir string) error {
 	sourceLocation, err := utils.NormalizeFilePath(d.Location)
 	if err != nil {
 		return err
@@ -102,6 +118,24 @@ func (d *Dependency) Update(rootDir string) error {
 		return err
 	}
 
+	return nil
+}
+
+// TODO: Handle tags, branches and commit hashes
+func (d *Dependency) updateGit(targetDir string) error {
+	gitUrl := strings.TrimPrefix(d.Location, "git+")
+	_, err := git.PlainClone(targetDir, false, &git.CloneOptions{
+		URL:      gitUrl,
+		Progress: os.Stdout,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to clone git repository %s: %w", gitUrl, err)
+	}
+
+	return nil
+}
+
+func (d *Dependency) updateTransitive(targetDir string) error {
 	transitiveProjectFile := fmt.Sprintf("%s/opa.project", targetDir)
 	if utils.FileExists(transitiveProjectFile) {
 		transitiveProject, err := ReadProjectFromFile(transitiveProjectFile, false)
