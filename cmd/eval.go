@@ -32,7 +32,7 @@ Example:
 }
 
 func doEval(args []string) error {
-	opaArgs := make([]string, 0, len(args)+1)
+	opaArgs := make([]string, 0, len(args)+3)
 	opaArgs = append(opaArgs, "eval", "-d", ".opa/dependencies")
 	opaArgs = append(opaArgs, args...)
 
