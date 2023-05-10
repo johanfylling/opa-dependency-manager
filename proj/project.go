@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 	"gopkg.in/yaml.v3"
 	"os"
 	"strings"
@@ -121,18 +122,46 @@ func (d *Dependency) updateLocal(targetDir string) error {
 	return nil
 }
 
-// TODO: Handle tags, branches and commit hashes
 func (d *Dependency) updateGit(targetDir string) error {
-	gitUrl := strings.TrimPrefix(d.Location, "git+")
-	_, err := git.PlainClone(targetDir, false, &git.CloneOptions{
-		URL:      gitUrl,
+	url, tag, err := parseGitUrl(d.Location)
+	if err != nil {
+		return err
+	}
+
+	repo, err := git.PlainClone(targetDir, false, &git.CloneOptions{
+		URL:      url,
 		Progress: os.Stdout,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to clone git repository %s: %w", gitUrl, err)
+		return fmt.Errorf("failed to clone git repository %s: %w", url, err)
+	}
+
+	w, err := repo.Worktree()
+	if err != nil {
+		return err
+	}
+
+	if err := w.Checkout(&git.CheckoutOptions{
+		Branch: plumbing.NewTagReferenceName(tag),
+	}); err != nil {
+		return err
 	}
 
 	return nil
+}
+
+func parseGitUrl(fullUrl string) (url string, tag string, err error) {
+	trimmedUrl := strings.TrimPrefix(fullUrl, "git+")
+	parts := strings.Split(trimmedUrl, "#")
+	if len(parts) > 2 {
+		return "", "", fmt.Errorf("invalid git url %s; only one tag separator '#' allowed", fullUrl)
+	}
+
+	url = parts[0]
+	if len(parts) == 2 {
+		tag = parts[1]
+	}
+	return
 }
 
 func (d *Dependency) updateTransitive(targetDir string) error {
