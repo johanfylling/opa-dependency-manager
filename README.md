@@ -26,6 +26,8 @@ odm update
 odm test
 ```
 
+An example project can be found [here](https://github.com/johanfylling/odm-example-project).
+
 ## Build
 
 ```bash
