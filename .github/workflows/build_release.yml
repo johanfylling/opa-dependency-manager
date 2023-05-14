@@ -1,0 +1,73 @@
+# This workflow will build a golang project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
+
+name: Build Release
+
+on:
+  push:
+    tags: 
+    - 'v[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  create_release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+
+    steps:
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        body: CHANGELOG.md
+        draft: true
+        prerelease: false
+
+  build_release:
+    runs-on: ubuntu-latest
+    needs: create_release
+    strategy:
+      matrix:
+        go-os: [ 'darwin', 'linux', 'windows' ]
+        go-arch: [ 'arm64', 'amd64' ]
+        
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.19
+    
+    - name: Install dependencies
+      run: go get .
+
+    - name: Build
+      run: env GOOS=${{ matrix.go-os }} GOARCH=${{ matrix.go-arch }} go build -v -o ${{ matrix.go-os }}_${{ matrix.go-arch }}/
+
+#    - name: Test
+#      run: go test -v ./...
+
+    - name: Tar
+      run: tar -zcvf ${{ matrix.go-os }}_${{ matrix.go-arch }}.tar.gz ${{ matrix.go-os }}_${{ matrix.go-arch }}/*
+
+#    - name: Upload artifacts
+#      uses: actions/upload-artifact@v3
+#      with:
+#        name: build-${{ matrix.go-os }}_${{ matrix.go-arch }}
+#        path: ${{ matrix.go-os }}_${{ matrix.go-arch }}.tar.gz
+
+    - name: Upload release artifact
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ needs.create_release.outputs.upload_url }}
+        asset_path: ./${{ matrix.go-os }}_${{ matrix.go-arch }}.tar.gz
+        asset_name: odm-${{ matrix.go-os }}_${{ matrix.go-arch }}.tar.gz
+        asset_content_type: application/gzip
+
