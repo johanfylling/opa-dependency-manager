@@ -1,4 +1,4 @@
-module styra.com/styrainc/odm
+module github.com/johanfylling/odm
 
 go 1.20
 

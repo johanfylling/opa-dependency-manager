@@ -1,8 +1,8 @@
 package main
 
 import (
+	"github.com/johanfylling/odm/cmd"
 	"os"
-	"styra.com/styrainc/odm/cmd"
 )
 
 func main() {

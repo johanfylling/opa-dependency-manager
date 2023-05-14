@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/johanfylling/odm/utils"
 	"gopkg.in/yaml.v3"
 	"os"
 	"strings"
-	"styra.com/styrainc/odm/utils"
 )
 
 type Project struct {

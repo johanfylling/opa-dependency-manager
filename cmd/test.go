@@ -2,10 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/johanfylling/odm/proj"
+	"github.com/johanfylling/odm/utils"
 	"github.com/spf13/cobra"
 	"os"
-	"styra.com/styrainc/odm/proj"
-	"styra.com/styrainc/odm/utils"
 )
 
 func init() {
