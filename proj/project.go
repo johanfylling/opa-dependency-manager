@@ -227,6 +227,18 @@ func ReadProjectFromFile(path string, allowMissing bool) (*Project, error) {
 	return &project, nil
 }
 
+func (p *Project) DataLocations() ([]string, error) {
+	dataLocations := []string{"./.opa/dependencies"}
+	if p.SourceDir != "" {
+		if src, err := utils.NormalizeFilePath(p.SourceDir); err != nil {
+			return nil, err
+		} else {
+			dataLocations = append(dataLocations, src)
+		}
+	}
+	return dataLocations, nil
+}
+
 func (p *Project) WriteToFile(path string, override bool) error {
 	path = normalizeProjectPath(path)
 

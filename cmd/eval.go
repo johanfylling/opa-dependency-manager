@@ -32,20 +32,18 @@ Example:
 }
 
 func doEval(args []string) error {
-	opaArgs := make([]string, 0, len(args)+3)
-	opaArgs = append(opaArgs, "eval", "-d", ".opa/dependencies")
-	opaArgs = append(opaArgs, args...)
-
 	project, err := proj.ReadProjectFromFile(".", true)
-	if err == nil && project.SourceDir != "" {
-		src, err := utils.NormalizeFilePath(project.SourceDir)
-		if err != nil {
-			return err
-		}
-		opaArgs = append(opaArgs, "-d", src)
+	if err != nil {
+		return err
 	}
 
-	if output, err := utils.RunCommand("opa", opaArgs...); err != nil {
+	dataLocations, err := project.DataLocations()
+	if err != nil {
+		return fmt.Errorf("error getting data locations: %s", err)
+	}
+
+	opa := utils.NewOpa(dataLocations)
+	if output, err := opa.Eval(args...); err != nil {
 		return fmt.Errorf("error running opa eval:\n %s", err)
 	} else {
 		fmt.Println(output)
