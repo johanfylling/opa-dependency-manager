@@ -25,22 +25,18 @@ func init() {
 }
 
 func doTest(args []string) error {
-	opaArgs := make([]string, 0, len(args)+2)
-	opaArgs = append(opaArgs, "test", ".opa/dependencies")
-
 	project, err := proj.ReadProjectFromFile(".", true)
-	if err == nil && project.SourceDir != "" {
-		src, err := utils.NormalizeFilePath(project.SourceDir)
-		if err != nil {
-			return err
-		}
-		opaArgs = append(opaArgs, src)
+	if err != nil {
+		return err
 	}
 
-	opaArgs = append(opaArgs, args...)
-	//opaArgs = append(opaArgs, "--ignore", ".opa/dependencies/*")
+	dataLocations, err := project.DataLocations()
+	if err != nil {
+		return fmt.Errorf("error getting data locations: %s", err)
+	}
 
-	if output, err := utils.RunCommand("opa", opaArgs...); err != nil {
+	opa := utils.NewOpa(dataLocations)
+	if output, err := opa.Test(args...); err != nil {
 		return fmt.Errorf("error running opa test:\n %s", err)
 	} else {
 		fmt.Println(output)
