@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/johanfylling/odm/printer"
 	"github.com/johanfylling/odm/proj"
 	"github.com/johanfylling/odm/utils"
 	"github.com/spf13/cobra"
@@ -26,10 +27,15 @@ func init() {
 }
 
 func doUpdate(projectPath string) error {
+	printer.Trace("--- Project update start ---")
+	defer printer.Trace("--- Project update end ---")
+
 	project, err := proj.ReadProjectFromFile(projectPath, false)
 	if err != nil {
 		return err
 	}
+
+	printer.Info("Updating project %s", project.Name)
 
 	rootDir := ".opa"
 	depRootDir := fmt.Sprintf("%s/dependencies", rootDir)

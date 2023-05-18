@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"fmt"
+	"github.com/johanfylling/odm/printer"
 	"net/url"
 	"os"
 	"os/exec"
@@ -66,7 +67,7 @@ func CopyAll(src string, dstDir string, exclude []string, ignoreEmptyFiles bool)
 		return fmt.Errorf("failed to stat source file/directory %s: %w", src, err)
 	}
 	if info.IsDir() {
-		fmt.Println("Copying dependency directory", src, "to", dstDir)
+		printer.Debug("Copying directory", src, "to", dstDir)
 		children, err := os.ReadDir(src)
 		if err != nil {
 			return fmt.Errorf("failed to read directory %s: %w", src, err)
@@ -74,7 +75,7 @@ func CopyAll(src string, dstDir string, exclude []string, ignoreEmptyFiles bool)
 
 		for _, child := range children {
 			if contains(exclude, child.Name()) {
-				fmt.Println("Skipping excluded file", child.Name())
+				printer.Debug("Skipping excluded file", child.Name())
 				continue
 			}
 
@@ -91,13 +92,13 @@ func CopyAll(src string, dstDir string, exclude []string, ignoreEmptyFiles bool)
 		}
 	} else {
 		dstFile := dstDir + "/" + info.Name()
-		fmt.Println("Copying file", src, "to", dstFile)
+		printer.Debug("Copying file %s to %s", src, dstFile)
 		data, err := os.ReadFile(src)
 		if err != nil {
 			return fmt.Errorf("failed to read file %s: %w", src, err)
 		}
 		if ignoreEmptyFiles && len(data) == 0 {
-			fmt.Println("Skipping empty file", src)
+			printer.Debug("Skipping empty file", src)
 			return nil
 		}
 		if err := os.WriteFile(dstFile, data, 0644); err != nil {
@@ -118,6 +119,7 @@ func contains(arr []string, str string) bool {
 }
 
 func RunCommand(command string, args ...string) (string, error) {
+	printer.Debug("Executing '%s' with args: %s", command, args)
 	cmd := exec.Command(command, args...)
 	var outb, errb bytes.Buffer
 	cmd.Stdout = &outb

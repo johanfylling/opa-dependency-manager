@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/johanfylling/odm/printer"
 	"github.com/johanfylling/odm/proj"
 	"github.com/spf13/cobra"
 	"os"
@@ -12,7 +13,7 @@ func init() {
 	var version string
 
 	var depCommand = &cobra.Command{
-		Use:   "dep <location> [flags]",
+		Use:   "depend <location> [flags]",
 		Short: "Add a dependency to the project",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
@@ -39,6 +40,9 @@ func init() {
 }
 
 func doAddDependency(location string, namespace string, version string, projectPath string) error {
+	printer.Trace("--- Dep start ---")
+	defer printer.Trace("--- Dep end ---")
+
 	project, err := proj.ReadProjectFromFile(projectPath, false)
 	if err != nil {
 		return err
@@ -48,8 +52,10 @@ func doAddDependency(location string, namespace string, version string, projectP
 		Namespace: namespace,
 		Version:   version,
 	}
+
+	printer.Info("Setting dependency: %s", location)
+
 	project.SetDependency(location, dependency)
-	//project.Dependencies = append(project.Dependencies, dependency)
 
 	return project.WriteToFile(projectPath, true)
 }
