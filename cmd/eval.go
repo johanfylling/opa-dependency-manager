@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/johanfylling/odm/printer"
 	"github.com/johanfylling/odm/proj"
 	"github.com/johanfylling/odm/utils"
 	"github.com/spf13/cobra"
@@ -32,6 +33,9 @@ Example:
 }
 
 func doEval(args []string) error {
+	printer.Trace("--- Eval start ---")
+	defer printer.Trace("--- Eval end ---")
+
 	project, err := proj.ReadProjectFromFile(".", true)
 	if err != nil {
 		return err
@@ -46,7 +50,7 @@ func doEval(args []string) error {
 	if output, err := opa.Eval(args...); err != nil {
 		return fmt.Errorf("error running opa eval:\n %s", err)
 	} else {
-		fmt.Println(output)
+		printer.Output(output)
 	}
 
 	return nil

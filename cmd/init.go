@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/johanfylling/odm/printer"
 	"github.com/johanfylling/odm/proj"
 	"github.com/johanfylling/odm/utils"
 	"github.com/spf13/cobra"
@@ -39,11 +40,14 @@ func init() {
 }
 
 func doInit(path string, name string, sourceDir string) error {
-	fmt.Println("initializing OPA project")
+	printer.Trace("--- Init start ---")
+	defer printer.Trace("--- Init end ---")
 
 	project := proj.Project{
 		Name: name,
 	}
+
+	printer.Info("initializing OPA project: %s", name)
 
 	if sourceDir != "" {
 		project.SourceDir = sourceDir
@@ -54,10 +58,10 @@ func doInit(path string, name string, sourceDir string) error {
 			return fmt.Errorf("error creating project directory: %s", err)
 		}
 	} else {
-		fmt.Printf("directory %s already exists, not creating new\n", path)
+		printer.Debug("directory %s already exists, not creating new\n", path)
 	}
 
-	err := project.WriteToFile(path, false) //createProjectFile(path, project)
+	err := project.WriteToFile(path, false)
 	if err != nil {
 		return err
 	}
@@ -76,15 +80,14 @@ func createDotOpaDirectory(path string) error {
 
 	// check if .opa directory already exists
 	if utils.FileExists(path) {
-		fmt.Printf("directory %s already exists, not creating new\n", path)
+		printer.Debug("directory %s already exists, not creating new\n", path)
 		return nil
 	}
 
 	// create directory at path
-	fmt.Printf("creating directory %s\n", path)
+	printer.Debug("creating directory %s\n", path)
 	err := os.MkdirAll(path, 0755)
 	if err != nil {
-		//fmt.Printf("error creating .opa directory: %s\n", err)
 		return fmt.Errorf("error creating .opa directory: %s", err)
 	}
 	return nil

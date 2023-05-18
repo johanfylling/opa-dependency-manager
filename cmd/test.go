@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/johanfylling/odm/printer"
 	"github.com/johanfylling/odm/proj"
 	"github.com/johanfylling/odm/utils"
 	"github.com/spf13/cobra"
@@ -25,6 +26,9 @@ func init() {
 }
 
 func doTest(args []string) error {
+	printer.Trace("--- Test start ---")
+	defer printer.Trace("--- Test end ---")
+
 	project, err := proj.ReadProjectFromFile(".", true)
 	if err != nil {
 		return err
@@ -39,7 +43,7 @@ func doTest(args []string) error {
 	if output, err := opa.Test(args...); err != nil {
 		return fmt.Errorf("error running opa test:\n %s", err)
 	} else {
-		fmt.Println(output)
+		printer.Output(output)
 	}
 
 	return nil

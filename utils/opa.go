@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"fmt"
+	"github.com/johanfylling/odm/printer"
 	"os"
 )
 
@@ -23,6 +23,8 @@ func NewOpa(dataLocations []string) *Opa {
 }
 
 func (o *Opa) Eval(passThroughArgs ...string) (string, error) {
+	printer.Info("Running OPA eval")
+
 	opaArgs := make([]string, 0, 1+2*len(o.dataLocations)+len(passThroughArgs))
 	opaArgs = append(opaArgs, "eval")
 
@@ -31,11 +33,12 @@ func (o *Opa) Eval(passThroughArgs ...string) (string, error) {
 	}
 	opaArgs = append(opaArgs, passThroughArgs...)
 
-	fmt.Printf("Executing: %s %s\n", o.location, opaArgs)
 	return RunCommand(o.location, opaArgs...)
 }
 
 func (o *Opa) Test(passThroughArgs ...string) (string, error) {
+	printer.Info("Running OPA test")
+
 	opaArgs := make([]string, 0, 1+len(o.dataLocations)+len(passThroughArgs))
 	opaArgs = append(opaArgs, "test")
 
@@ -44,6 +47,5 @@ func (o *Opa) Test(passThroughArgs ...string) (string, error) {
 	}
 	opaArgs = append(opaArgs, passThroughArgs...)
 
-	fmt.Printf("Executing: %s %s\n", o.location, opaArgs)
 	return RunCommand(o.location, opaArgs...)
 }

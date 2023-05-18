@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/johanfylling/odm/printer"
 	"github.com/johanfylling/odm/utils"
 	"gopkg.in/yaml.v3"
 	"os"
@@ -88,16 +89,32 @@ func (d *Dependency) Update(rootDir string) error {
 	}
 
 	if strings.HasPrefix(d.Location, "git+") {
+		printer.Debug("Updating git dependency %s", d.Namespace)
 		if err := d.updateGit(targetDir); err != nil {
 			return err
 		}
-	} else {
+	} else { //if strings.HasPrefix(d.Location, "file:") {
+		printer.Debug("Updating git dependency %s", d.Namespace)
+		printer.Debug("Updating transitive dependencies for %s", d.Namespace)
 		if err := d.updateLocal(targetDir); err != nil {
 			return err
 		}
+	} //} else {
+	//	return fmt.Errorf("unsupported dependency location: %s", d.Location)
+	//}
+
+	if err := d.updateTransitive(targetDir); err != nil {
+		return fmt.Errorf("failed to update transitive dependencies for %s: %w", d.Namespace, err)
 	}
 
-	return d.updateTransitive(targetDir)
+	if d.Namespace != "" {
+		mapping := fmt.Sprintf("data:data.%s", d.Namespace)
+		if _, err := utils.RunCommand("opa", "refactor", "move", "-w", "-p", mapping, targetDir); err != nil {
+			return fmt.Errorf("failed to refactor namespace %s: %w", d.Namespace, err)
+		}
+	}
+
+	return nil
 }
 
 func (d *Dependency) updateLocal(targetDir string) error {
@@ -130,21 +147,25 @@ func (d *Dependency) updateGit(targetDir string) error {
 
 	repo, err := git.PlainClone(targetDir, false, &git.CloneOptions{
 		URL:      url,
-		Progress: os.Stdout,
+		Progress: printer.DebugPrinter(),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to clone git repository %s: %w", url, err)
 	}
 
-	w, err := repo.Worktree()
-	if err != nil {
-		return err
-	}
+	if tag != "" {
+		w, err := repo.Worktree()
+		if err != nil {
+			return fmt.Errorf("failed to get worktree for git repository %s: %w", url, err)
+		}
 
-	if err := w.Checkout(&git.CheckoutOptions{
-		Branch: plumbing.NewTagReferenceName(tag),
-	}); err != nil {
-		return err
+		if err := w.Checkout(&git.CheckoutOptions{
+			Branch: plumbing.NewTagReferenceName(tag),
+		}); err != nil {
+			return fmt.Errorf("failed to checkout tag '%s' for git repository %s: %w", tag, url, err)
+		}
+	} else {
+		printer.Debug("No tag specified, using HEAD")
 	}
 
 	return nil
@@ -165,6 +186,8 @@ func parseGitUrl(fullUrl string) (url string, tag string, err error) {
 }
 
 func (d *Dependency) updateTransitive(targetDir string) error {
+	printer.Debug("Updating transitive dependencies for %s", d.Namespace)
+
 	transitiveProjectFile := fmt.Sprintf("%s/opa.project", targetDir)
 	if utils.FileExists(transitiveProjectFile) {
 		transitiveProject, err := ReadProjectFromFile(transitiveProjectFile, false)
@@ -180,13 +203,6 @@ func (d *Dependency) updateTransitive(targetDir string) error {
 		}
 
 		d.TransitiveDependencies = transitiveProject.Dependencies
-	}
-
-	if d.Namespace != "" {
-		mapping := fmt.Sprintf("data:data.%s", d.Namespace)
-		if _, err := utils.RunCommand("opa", "refactor", "move", "-w", "-p", mapping, targetDir); err != nil {
-			return fmt.Errorf("failed to refactor namespace %s: %w", d.Namespace, err)
-		}
 	}
 
 	return nil
@@ -241,6 +257,7 @@ func (p *Project) DataLocations() ([]string, error) {
 
 func (p *Project) WriteToFile(path string, override bool) error {
 	path = normalizeProjectPath(path)
+	printer.Debug("Writing project file to %s", path)
 
 	if !override && utils.FileExists(path) {
 		return fmt.Errorf("project file %s already exists", path)
