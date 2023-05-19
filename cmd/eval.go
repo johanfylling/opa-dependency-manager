@@ -36,6 +36,11 @@ func doEval(args []string) error {
 	printer.Trace("--- Eval start ---")
 	defer printer.Trace("--- Eval end ---")
 
+	if len(args) == 0 {
+		// We're still calling OPA, so it can print its usage message
+		printer.Info("no OPA flags provided")
+	}
+
 	project, err := proj.ReadProjectFromFile(".", true)
 	if err != nil {
 		return err

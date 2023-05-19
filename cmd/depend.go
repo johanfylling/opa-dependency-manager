@@ -10,38 +10,52 @@ import (
 
 func init() {
 	var namespace string
-	var version string
+	var namespaced bool
 
 	var depCommand = &cobra.Command{
-		Use:   "depend <location> [flags]",
+		Use:   "depend <name> <location> [flags]",
 		Short: "Add a dependency to the project",
+		Long: `Add a dependency to the project
+
+Supported location types:
+- Git repository: git+http://..., git+https://..., git+ssh://...
+- Local file/directory: file://path/to/dir, file:/../path/to/dir
+
+Example:`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("expected exactly one dependency")
+			if len(args) < 2 {
+				return fmt.Errorf("expected exactly one dependency name and one location")
 			}
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			dep := args[0]
+			name := args[0]
+			location := args[1]
 
 			projPath := "."
 
-			if err := doAddDependency(dep, namespace, version, projPath); err != nil {
+			if namespaced && namespace == "" {
+				namespace = name
+			}
+
+			if err := doAddDependency(name, location, namespace, projPath); err != nil {
 				_, _ = cmd.OutOrStderr().Write([]byte(err.Error()))
 				os.Exit(1)
 			}
 		},
 	}
 
-	depCommand.Flags().StringVarP(&namespace, "namespace", "n", "", "namespace of the dependency")
-	depCommand.Flags().StringVarP(&version, "version", "v", "", "version of the dependency")
+	depCommand.Flags().BoolVarP(&namespaced, "namespaced", "n", false, "use name of dependency as namespace. Ignored if --namespace is set")
+	depCommand.Flags().StringVarP(&namespace, "namespace", "N", "", "namespace of the dependency")
 
 	RootCommand.AddCommand(depCommand)
 }
 
-func doAddDependency(location string, namespace string, version string, projectPath string) error {
+func doAddDependency(name string, location string, namespace string, projectPath string) error {
 	printer.Trace("--- Dep start ---")
 	defer printer.Trace("--- Dep end ---")
+
+	printer.Info("Setting dependency '%s' @ '%s'", name, location)
 
 	project, err := proj.ReadProjectFromFile(projectPath, false)
 	if err != nil {
@@ -50,12 +64,10 @@ func doAddDependency(location string, namespace string, version string, projectP
 
 	dependency := proj.DependencyInfo{
 		Namespace: namespace,
-		Version:   version,
+		Location:  location,
 	}
 
-	printer.Info("Setting dependency: %s", location)
-
-	project.SetDependency(location, dependency)
+	project.SetDependency(name, dependency)
 
 	return project.WriteToFile(projectPath, true)
 }
