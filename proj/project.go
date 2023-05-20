@@ -50,7 +50,8 @@ func (ds *Dependencies) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		switch v.(type) {
 		case string:
 			info = DependencyInfo{
-				Location: v.(string),
+				Location:  v.(string),
+				Namespace: k,
 			}
 		case map[string]interface{}:
 			var namespace = ""
@@ -65,6 +66,9 @@ func (ds *Dependencies) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				default:
 					return fmt.Errorf("invalid namespace type: %T", ns)
 				}
+			} else {
+				// If no namespace is specified, default to the dependency name
+				namespace = k
 			}
 			info = DependencyInfo{
 				Location:  v.(map[string]interface{})["location"].(string),
@@ -89,7 +93,28 @@ func (ds *Dependencies) MarshalYAML() (interface{}, error) {
 	return depMap, nil
 }
 
-func (d *Dependency) Update(rootDir string) error {
+func (d Dependency) MarshalYAML() (interface{}, error) {
+	printer.Debug("Marshalling dependency %s", d.Name)
+
+	if d.Namespace == d.Name {
+		return d.Location, nil
+	}
+
+	if d.Namespace == "" {
+		return map[string]interface{}{
+			"namespace": false,
+			"location":  d.Location,
+		}, nil
+
+	}
+
+	return map[string]interface{}{
+		"namespace": d.Namespace,
+		"location":  d.Location,
+	}, nil
+}
+
+func (d Dependency) Update(rootDir string) error {
 	var id string
 	if d.Name != "" {
 		id = d.Name
@@ -143,7 +168,7 @@ func (d *Dependency) Update(rootDir string) error {
 	return nil
 }
 
-func (d *Dependency) updateLocal(targetDir string) error {
+func (d Dependency) updateLocal(targetDir string) error {
 	sourceLocation, err := utils.NormalizeFilePath(d.Location)
 	if err != nil {
 		return err
@@ -165,7 +190,7 @@ func (d *Dependency) updateLocal(targetDir string) error {
 	return nil
 }
 
-func (d *Dependency) updateGit(targetDir string) error {
+func (d Dependency) updateGit(targetDir string) error {
 	url, tag, err := parseGitUrl(d.Location)
 	if err != nil {
 		return err
@@ -211,7 +236,7 @@ func parseGitUrl(fullUrl string) (url string, tag string, err error) {
 	return
 }
 
-func (d *Dependency) updateTransitive(targetDir string) error {
+func (d Dependency) updateTransitive(targetDir string) error {
 	printer.Debug("Updating transitive dependencies for %s", d.Namespace)
 
 	transitiveProjectFile := fmt.Sprintf("%s/opa.project", targetDir)
