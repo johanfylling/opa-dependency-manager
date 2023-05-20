@@ -10,7 +10,7 @@ import (
 
 func init() {
 	var namespace string
-	var namespaced bool
+	var noNamespace bool
 
 	var depCommand = &cobra.Command{
 		Use:   "depend <name> <location> [flags]",
@@ -34,7 +34,9 @@ Example:`,
 
 			projPath := "."
 
-			if namespaced && namespace == "" {
+			if noNamespace {
+				namespace = ""
+			} else if namespace == "" {
 				namespace = name
 			}
 
@@ -45,8 +47,8 @@ Example:`,
 		},
 	}
 
-	depCommand.Flags().BoolVarP(&namespaced, "namespaced", "n", false, "use name of dependency as namespace. Ignored if --namespace is set")
-	depCommand.Flags().StringVarP(&namespace, "namespace", "N", "", "namespace of the dependency")
+	depCommand.Flags().StringVarP(&namespace, "namespace", "n", "", "namespace of the dependency. Ignored if --no-namespace is set")
+	depCommand.Flags().BoolVar(&noNamespace, "no-namespace", false, "")
 
 	RootCommand.AddCommand(depCommand)
 }
@@ -55,7 +57,13 @@ func doAddDependency(name string, location string, namespace string, projectPath
 	printer.Trace("--- Dep start ---")
 	defer printer.Trace("--- Dep end ---")
 
-	printer.Info("Setting dependency '%s' @ '%s'", name, location)
+	var nsInfo string
+	if namespace == "" {
+		nsInfo = "no"
+	} else {
+		nsInfo = fmt.Sprintf("'%s'", namespace)
+	}
+	printer.Info("Setting dependency '%s' @ '%s', with %s namespace", name, location, nsInfo)
 
 	project, err := proj.ReadProjectFromFile(projectPath, false)
 	if err != nil {
