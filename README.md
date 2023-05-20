@@ -28,98 +28,54 @@ odm test
 
 An example project can be found [here](https://github.com/johanfylling/odm-example-project).
 
-## Build
-
-```bash
-go build
-```
-
-## Run
+## Running
 
 Where you have your `.rego` project/files.
 
 ### Setup new project
 
 ```bash
-odm init
+odm init [project name]
 ```
 
 ### Add a dependency
 
 ```bash
-odm dep <dependency path>
+odm depend <dependency name> <dependency path>
 ```
 
 In `opa.project`:
 
 ```yaml
 dependencies:
-  - path: <dependency path>
+  <dependency name>: <dependency path>
 ```
 
 #### Local dependency
 
 Local dependencies can be specified with relative or absolute paths, or URLs.:
 
-* `file://<path>`
-* `./<path>`
-* `<path>`
-* `../<path>`
-* `~/<path>`
+* `file:/<path>`
+
+Examples:
+
+* Absolute path: `file://tmp/my/dependency`
+* Relative path: `file:/../my/dependency`
 
 #### Git dependency
 
 Git dependencies are URLs prefixed with `git+`:
 
-* `git+http://<path>`
-* `git+https://<path>`
-* `git+ssh://<path>`
+* `git+http://<path>[#tag|branch|commit]]`
+* `git+https://<path>[#tag|branch|commit]]`
+* `git+ssh://<path>[#tag|branch|commit]]`
 
-[//]: # (A branch, tag or commit can be specified with the `#` separator:)
+Examples:
 
-[//]: # ()
-[//]: # (* `git+https://<path>#<branch>`)
-
-[//]: # (* `git+https://<path>#<tag>`)
-
-[//]: # (* `git+https://<path>#<commit>`)
-
-#### Namespacing
-
-```bash
-odm dep path/to/dependency -n mynamespace
-```
-
-In `opa.project`:
-
-```yaml
-dependencies:
-  - path: path/to/dependency
-    namespace: mynamespace
-```
-
-When a dependency is namespaced, all contained Rego packages will be prefixed with the namespace.
-E.g.: a dependency with the following package structure:
-
-```
-foo
- +-- bar
- |   +-- baz
- +-- qux   
-```
-
-when namespaced with `utils`, it will have the following structure:
-
-```
-utils
- +-- foo
-     +-- bar
-     |   +-- baz
-     +-- qux   
-```
-
-Transitive dependencies will be namespaced as well.
-Any transitive dependency already namespaced by its enclosing dependency project will have it's packages prefixed by the namespace assigned by the enclosing project, and then by the namespace defined in the main project, recursively.
+* GitHub dependency at `HEAD` of repo: `git+https://github.com/johanfylling/odm-example-dependency.git`
+* GitHub dependency at `v1.0` tag: `git+https://github.com/johanfylling/odm-example-dependency.git#v1.0`
+* GitHub dependency at `foo` branch: `git+https://github.com/johanfylling/odm-example-dependency.git#foo`
+* GitHub dependency at `88c5cde` commit: `git+https://github.com/johanfylling/odm-example-dependency.git#88c5cde`
 
 ### Update dependencies
 
@@ -145,6 +101,63 @@ odm test -- -d policy.rego
 
 if a `source` folder is specified in `opa.project`, it will be automatically included in the evaluation.
 
+## Namespacing
+
+By default, dependencies are namespaced by their declared name.
+
+When a dependency is namespaced, all contained Rego packages will be prefixed with the namespace.
+E.g.: a dependency with the following package structure:
+
+```
+foo
+ +-- bar
+ |   +-- baz
+ +-- qux   
+```
+
+when namespaced with `utils`, it will have the following structure:
+
+```
+utils
+ +-- foo
+     +-- bar
+     |   +-- baz
+     +-- qux   
+```
+
+Transitive dependencies will be namespaced as well.
+Any transitive dependency already namespaced by its enclosing dependency project will have it's packages prefixed by the namespace assigned by the enclosing project, and then by the namespace defined in the main project, recursively.
+
+### Custom namespace
+
+```bash
+odm dep my_dep file:/path/to/dependency -n mynamespace
+```
+
+In `opa.project`:
+
+```yaml
+dependencies:
+  my_dep: 
+    path: file:/path/to/dependency
+    namespace: mynamespace
+```
+
+### Disabling namespacing
+
+```bash
+odm dep my_dep file:/path/to/dependency --no-namespace
+```
+
+In `opa.project`:
+
+```yaml
+dependencies:
+  my_dep: 
+    path: file:/path/to/dependency
+    namespace: false
+```
+
 ## The `opa.project` file
 
 The `opa.project` file is a YAML file that contains the project configuration.
@@ -155,8 +168,7 @@ Example:
 name: <project name>
 source: <source path>
 dependencies:
-  - path: <dependency path>
-    namespace: <namespace>
+  <dependency name>: <dependency path>
 ```
 
 ### `name`
@@ -170,12 +182,22 @@ If specified, the source folder will be automatically included in the `eval` and
 
 ### `dependencies`
 
-A list of dependencies.
+A map of dependency declaration, keyed by their name.
 
-#### `path`
+#### `location`
 
-The path to the dependency.
+The location of the dependency.
 
 #### `namespace`
 
-The namespace to use for the dependency.
+If a `string`, the namespace to use for the dependency.
+
+If a `boolean`, whether to use the dependency name as namespace.
+
+If not defined, the dependency will be namespaced by its declared name.
+
+## Building
+
+```bash
+go build
+```
