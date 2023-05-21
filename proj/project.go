@@ -20,13 +20,13 @@ type Project struct {
 }
 
 type DependencyInfo struct {
+	Location  string `yaml:"location"`
 	Namespace string `yaml:"namespace,omitempty"`
-	Version   string `yaml:"version,omitempty"`
 }
 
 type Dependency struct {
 	DependencyInfo         `yaml:",inline"`
-	Location               string       `yaml:"-"`
+	Name                   string       `yaml:"-"`
 	TransitiveDependencies Dependencies `yaml:"-"`
 }
 
@@ -39,16 +39,45 @@ func NewProject() *Project {
 }
 
 func (ds *Dependencies) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	infos := make(map[string]DependencyInfo)
-	if err := unmarshal(&infos); err != nil {
+	raw := make(map[string]interface{})
+	if err := unmarshal(&raw); err != nil {
 		return err
 	}
 
 	*ds = make(map[string]Dependency)
-	for k, v := range infos {
+	for k, v := range raw {
+		var info DependencyInfo
+		switch v.(type) {
+		case string:
+			info = DependencyInfo{
+				Location:  v.(string),
+				Namespace: k,
+			}
+		case map[string]interface{}:
+			var namespace = ""
+			if ns := v.(map[string]interface{})["namespace"]; ns != nil {
+				switch ns := ns.(type) {
+				case bool:
+					if ns {
+						namespace = k
+					}
+				case string:
+					namespace = ns
+				default:
+					return fmt.Errorf("invalid namespace type: %T", ns)
+				}
+			} else {
+				// If no namespace is specified, default to the dependency name
+				namespace = k
+			}
+			info = DependencyInfo{
+				Location:  v.(map[string]interface{})["location"].(string),
+				Namespace: namespace,
+			}
+		}
 		(*ds)[k] = Dependency{
-			DependencyInfo: v,
-			Location:       k,
+			DependencyInfo: info,
+			Name:           k,
 		}
 	}
 
@@ -64,11 +93,33 @@ func (ds *Dependencies) MarshalYAML() (interface{}, error) {
 	return depMap, nil
 }
 
-func (d *Dependency) Update(rootDir string) error {
+func (d Dependency) MarshalYAML() (interface{}, error) {
+	printer.Debug("Marshalling dependency %s", d.Name)
+
+	if d.Namespace == d.Name {
+		return d.Location, nil
+	}
+
+	if d.Namespace == "" {
+		return map[string]interface{}{
+			"namespace": false,
+			"location":  d.Location,
+		}, nil
+
+	}
+
+	return map[string]interface{}{
+		"namespace": d.Namespace,
+		"location":  d.Location,
+	}, nil
+}
+
+func (d Dependency) Update(rootDir string) error {
 	var id string
-	if d.Namespace != "" {
-		id = d.Namespace
+	if d.Name != "" {
+		id = d.Name
 	} else {
+		// Should never happen, as dependencies are keyed by their name
 		h := sha256.New()
 		h.Write([]byte(d.Location))
 		id = fmt.Sprintf("%x", h.Sum(nil))
@@ -93,15 +144,15 @@ func (d *Dependency) Update(rootDir string) error {
 		if err := d.updateGit(targetDir); err != nil {
 			return err
 		}
-	} else { //if strings.HasPrefix(d.Location, "file:") {
+	} else if strings.HasPrefix(d.Location, "file:") {
 		printer.Debug("Updating git dependency %s", d.Namespace)
 		printer.Debug("Updating transitive dependencies for %s", d.Namespace)
 		if err := d.updateLocal(targetDir); err != nil {
 			return err
 		}
-	} //} else {
-	//	return fmt.Errorf("unsupported dependency location: %s", d.Location)
-	//}
+	} else {
+		return fmt.Errorf("unsupported dependency location: %s", d.Location)
+	}
 
 	if err := d.updateTransitive(targetDir); err != nil {
 		return fmt.Errorf("failed to update transitive dependencies for %s: %w", d.Namespace, err)
@@ -117,7 +168,7 @@ func (d *Dependency) Update(rootDir string) error {
 	return nil
 }
 
-func (d *Dependency) updateLocal(targetDir string) error {
+func (d Dependency) updateLocal(targetDir string) error {
 	sourceLocation, err := utils.NormalizeFilePath(d.Location)
 	if err != nil {
 		return err
@@ -139,7 +190,7 @@ func (d *Dependency) updateLocal(targetDir string) error {
 	return nil
 }
 
-func (d *Dependency) updateGit(targetDir string) error {
+func (d Dependency) updateGit(targetDir string) error {
 	url, tag, err := parseGitUrl(d.Location)
 	if err != nil {
 		return err
@@ -185,7 +236,7 @@ func parseGitUrl(fullUrl string) (url string, tag string, err error) {
 	return
 }
 
-func (d *Dependency) updateTransitive(targetDir string) error {
+func (d Dependency) updateTransitive(targetDir string) error {
 	printer.Debug("Updating transitive dependencies for %s", d.Namespace)
 
 	transitiveProjectFile := fmt.Sprintf("%s/opa.project", targetDir)
@@ -208,13 +259,13 @@ func (d *Dependency) updateTransitive(targetDir string) error {
 	return nil
 }
 
-func (p *Project) SetDependency(location string, info DependencyInfo) {
+func (p *Project) SetDependency(name string, info DependencyInfo) {
 	if p.Dependencies == nil {
 		p.Dependencies = make(map[string]Dependency)
 	}
-	p.Dependencies[location] = Dependency{
+	p.Dependencies[name] = Dependency{
 		DependencyInfo: info,
-		Location:       location,
+		Name:           name,
 	}
 }
 
