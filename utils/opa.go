@@ -66,7 +66,7 @@ func (o *Opa) Test(passThroughArgs ...string) (string, error) {
 
 func (o *Opa) Build(outputPath string, passThroughFlags ...string) (string, error) {
 	printer.Info("Running OPA build")
-	printer.Info("Output bundle path: %s", outputPath)
+	printer.Debug("Output bundle path: %s", outputPath)
 
 	opaArgs := prefixEntrypoints(o.entrypoints, passThroughFlags)
 	opaArgs = prefixOutput(outputPath, opaArgs)

@@ -302,6 +302,7 @@ func ReadProjectFromFile(path string, allowMissing bool) (*Project, error) {
 }
 
 func (p *Project) DataLocations() ([]string, error) {
+	// TODO: Instead of hardcoding the ./.opa/dependencies directory, add each dependency's location individually; if the dependency has an opa.project file, only add the configured source directory
 	dataLocations := []string{"./.opa/dependencies"}
 	if p.SourceDir != "" {
 		if src, err := utils.NormalizeFilePath(p.SourceDir); err != nil {

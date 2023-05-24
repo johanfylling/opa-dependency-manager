@@ -16,25 +16,37 @@ var (
 )
 
 func init() {
+	var noUpdate bool
+
 	var buildCmd = &cobra.Command{
 		Use:   "build",
 		Short: "Build OPA bundle",
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := doBuild(args); err != nil {
+			projPath := "."
+
+			if !noUpdate {
+				if err := doUpdate(projPath); err != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "%s\n", err)
+					os.Exit(1)
+				}
+			}
+
+			if err := doBuild(projPath, args); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "%s\n", err)
 				os.Exit(1)
 			}
 		},
 	}
 
+	buildCmd.Flags().BoolVar(&noUpdate, "no-update", false, "do not sync dependencies before building")
 	RootCommand.AddCommand(buildCmd)
 }
 
-func doBuild(args []string) error {
+func doBuild(projPath string, args []string) error {
 	printer.Trace("--- Eval start ---")
 	defer printer.Trace("--- Eval end ---")
 
-	project, err := proj.ReadProjectFromFile(".", true)
+	project, err := proj.ReadProjectFromFile(projPath, true)
 	if err != nil {
 		return err
 	}

@@ -35,7 +35,7 @@ func doUpdate(projectPath string) error {
 		return err
 	}
 
-	printer.Info("Updating project %s", project.Name)
+	printer.Info("Updating project '%s'", project.Name)
 
 	rootDir := ".opa"
 	depRootDir := fmt.Sprintf("%s/dependencies", rootDir)
