@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -21,6 +22,24 @@ func IsDir(path string) bool {
 		return false
 	}
 	return info.IsDir()
+}
+
+func MustBeDir(path string) error {
+	if !IsDir(path) {
+		if absPath, err := filepath.Abs(path); err != nil {
+			return fmt.Errorf("'%s' is not a directory", path)
+		} else {
+			return fmt.Errorf("'%s' is not a directory", absPath)
+		}
+	}
+	return nil
+}
+
+func MakeDir(path string) error {
+	if FileExists(path) {
+		return MustBeDir(path)
+	}
+	return os.MkdirAll(path, 0755)
 }
 
 func GetFileName(path string) string {
@@ -133,4 +152,13 @@ func RunCommand(command string, args ...string) (string, error) {
 	} else {
 		return outb.String(), nil
 	}
+}
+
+func Contains[T comparable](slice []T, item T) bool {
+	for _, i := range slice {
+		if i == item {
+			return true
+		}
+	}
+	return false
 }

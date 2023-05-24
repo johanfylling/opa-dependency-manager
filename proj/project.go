@@ -17,6 +17,13 @@ type Project struct {
 	Version      string       `yaml:"version,omitempty"`
 	SourceDir    string       `yaml:"source,omitempty"`
 	Dependencies Dependencies `yaml:"dependencies,omitempty"`
+	Build        Build        `yaml:"build,omitempty"`
+}
+
+type Build struct {
+	Output      string   `yaml:"output,omitempty"`
+	Target      string   `yaml:"target,omitempty"`
+	Entrypoints []string `yaml:"entrypoints,omitempty"`
 }
 
 type DependencyInfo struct {
