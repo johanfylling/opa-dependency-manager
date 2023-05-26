@@ -10,26 +10,38 @@ import (
 )
 
 func init() {
+	var noUpdate bool
+
 	var testCommand = &cobra.Command{
 		Use:   "test [flags] -- [opa test flags]",
 		Short: "Run OPA tests",
 		Long:  `Run OPA tests`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := doTest(args); err != nil {
+			projPath := "."
+
+			if !noUpdate {
+				if err := doUpdate(projPath); err != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "%s\n", err)
+					os.Exit(1)
+				}
+			}
+
+			if err := doTest(projPath, args); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "%s\n", err)
 				os.Exit(1)
 			}
 		},
 	}
 
+	testCommand.Flags().BoolVar(&noUpdate, "no-update", false, "do not sync dependencies before testing")
 	RootCommand.AddCommand(testCommand)
 }
 
-func doTest(args []string) error {
+func doTest(projPath string, args []string) error {
 	printer.Trace("--- Test start ---")
 	defer printer.Trace("--- Test end ---")
 
-	project, err := proj.ReadProjectFromFile(".", true)
+	project, err := proj.ReadProjectFromFile(projPath, true)
 	if err != nil {
 		return err
 	}

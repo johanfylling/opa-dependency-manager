@@ -10,6 +10,8 @@ import (
 )
 
 func init() {
+	var noUpdate bool
+
 	var evalCommand = &cobra.Command{
 		Use:   "eval [flags] -- [opa eval flags]",
 		Short: "Evaluate a Rego query using OPA",
@@ -22,17 +24,27 @@ Example:
 'opa eval -d ./opa/dependencies -d policy.rego "data.main.allow"'
 `,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := doEval(args); err != nil {
+			projPath := "."
+
+			if !noUpdate {
+				if err := doUpdate(projPath); err != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "%s\n", err)
+					os.Exit(1)
+				}
+			}
+
+			if err := doEval(projPath, args); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "%s\n", err)
 				os.Exit(1)
 			}
 		},
 	}
 
+	evalCommand.Flags().BoolVar(&noUpdate, "no-update", false, "do not sync dependencies before evaluating")
 	RootCommand.AddCommand(evalCommand)
 }
 
-func doEval(args []string) error {
+func doEval(projPath string, args []string) error {
 	printer.Trace("--- Eval start ---")
 	defer printer.Trace("--- Eval end ---")
 
@@ -41,7 +53,7 @@ func doEval(args []string) error {
 		printer.Info("no OPA flags provided")
 	}
 
-	project, err := proj.ReadProjectFromFile(".", true)
+	project, err := proj.ReadProjectFromFile(projPath, true)
 	if err != nil {
 		return err
 	}

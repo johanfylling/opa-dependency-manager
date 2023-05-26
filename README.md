@@ -171,30 +171,20 @@ dependencies:
   <dependency name>: <dependency path>
 ```
 
-### `name`
+### Attributes
 
-The name of the project.
-
-### `source`
-
-The path to the source folder.
-If specified, the source folder will be automatically included in the `eval` and `test` commands.
-
-### `dependencies`
-
-A map of dependency declaration, keyed by their name.
-
-#### `location`
-
-The location of the dependency.
-
-#### `namespace`
-
-If a `string`, the namespace to use for the dependency.
-
-If a `boolean`, whether to use the dependency name as namespace.
-
-If not defined, the dependency will be namespaced by its declared name.
+| Attribute                       | Type             | Default                 | Description                                                                                                                                                           |
+|---------------------------------|------------------|-------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `name`                          | `string`         | none                    | The name of the project.                                                                                                                                              |
+| `source`                        | `string`         | none                    | The path to the source folder. If specified, the source folder will be automatically included in the `eval` and `test` commands.                                      |
+| `dependencies`                  | `map`            |                         | A map of dependency declaration, keyed by their name.                                                                                                                 |
+ | `dependencies.<name>`           | `map`, `string`  | none                    | A dependency declaration. A short form is supported, where the dependency value is its location as a string.                                                          |
+| `dependencies.<name>.location`  | `string`         | none                    | The location of the dependency.                                                                                                                                       |
+| `dependencies.<name>.namespace` | `string`, `bool` | `true`                  | If a `string`: the namespace to use for the dependency.  If a `bool`: if `true`, use the dependency `name` as namespace; if `false`, don't namesapace the dependency. |
+ | `build`                         | `map`            |                         | Settings for building bundles.                                                                                                                                        |
+| `build.output`                  | `string`         | `./build/bundle.tar.gz` | The location of the target bundle.                                                                                                                                    |
+ | `build.target`                  | `string`         | `rego`                  | The target bundle format. E.g. `rego`, `wasm`, or `plan`                                                                                                              |
+ | `build.entrypoints`             | `[]string`       | `[]`                    | List of entrypoints                                                                                                                                                   |
 
 ## Building
 
