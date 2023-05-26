@@ -38,7 +38,7 @@ func init() {
 		},
 	}
 
-	buildCmd.Flags().BoolVar(&noUpdate, "no-update", false, "do not sync dependencies before building")
+	addNoUpdateFlag(buildCmd, &noUpdate)
 	RootCommand.AddCommand(buildCmd)
 }
 

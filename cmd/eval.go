@@ -40,7 +40,7 @@ Example:
 		},
 	}
 
-	evalCommand.Flags().BoolVar(&noUpdate, "no-update", false, "do not sync dependencies before evaluating")
+	addNoUpdateFlag(evalCommand, &noUpdate)
 	RootCommand.AddCommand(evalCommand)
 }
 

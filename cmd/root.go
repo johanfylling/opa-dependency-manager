@@ -16,3 +16,7 @@ func init() {
 	// Add verbose flag to all commands
 	RootCommand.PersistentFlags().CountVarP(&printer.LogLevel, "verbose", "v", "verbose output")
 }
+
+func addNoUpdateFlag(cmd *cobra.Command, v *bool) {
+	cmd.Flags().BoolVar(v, "no-update", false, "do not sync dependencies before executing this command")
+}

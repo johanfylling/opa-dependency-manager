@@ -33,7 +33,7 @@ func init() {
 		},
 	}
 
-	testCommand.Flags().BoolVar(&noUpdate, "no-update", false, "do not sync dependencies before testing")
+	addNoUpdateFlag(testCommand, &noUpdate)
 	RootCommand.AddCommand(testCommand)
 }
 
