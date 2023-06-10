@@ -41,7 +41,7 @@ func doTest(projPath string, args []string) error {
 	printer.Trace("--- Test start ---")
 	defer printer.Trace("--- Test end ---")
 
-	project, err := proj.ReadProjectFromFile(projPath, true)
+	project, err := proj.ReadAndLoadProject(projPath, true)
 	if err != nil {
 		return err
 	}

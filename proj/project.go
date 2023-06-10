@@ -320,6 +320,19 @@ func ReadProjectFromFile(path string, allowMissing bool) (*Project, error) {
 	return &project, nil
 }
 
+func ReadAndLoadProject(path string, allowMissing bool) (*Project, error) {
+	project, err := ReadProjectFromFile(path, allowMissing)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := project.Load(); err != nil {
+		return nil, err
+	}
+
+	return project, nil
+}
+
 func (p *Project) Load() error {
 	rootDir := filepath.Dir(p.filePath)
 	depRootDir := dependenciesDir(rootDir)
