@@ -46,7 +46,7 @@ func doBuild(projPath string, args []string) error {
 	printer.Trace("--- Eval start ---")
 	defer printer.Trace("--- Eval end ---")
 
-	project, err := proj.ReadProjectFromFile(projPath, true)
+	project, err := proj.ReadAndLoadProject(projPath, true)
 	if err != nil {
 		return err
 	}

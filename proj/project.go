@@ -8,16 +8,25 @@ import (
 	"github.com/johanfylling/odm/printer"
 	"github.com/johanfylling/odm/utils"
 	"gopkg.in/yaml.v3"
+	"io"
 	"os"
+	"path/filepath"
 	"strings"
+)
+
+const (
+	dotOpaDir = ".opa"
+	depDir    = "dependencies"
 )
 
 type Project struct {
 	Name         string       `yaml:"name,omitempty"`
 	Version      string       `yaml:"version,omitempty"`
 	SourceDir    string       `yaml:"source,omitempty"`
+	TestDir      string       `yaml:"test,omitempty"`
 	Dependencies Dependencies `yaml:"dependencies,omitempty"`
 	Build        Build        `yaml:"build,omitempty"`
+	filePath     string
 }
 
 type Build struct {
@@ -32,16 +41,18 @@ type DependencyInfo struct {
 }
 
 type Dependency struct {
-	DependencyInfo         `yaml:",inline"`
-	Name                   string       `yaml:"-"`
-	TransitiveDependencies Dependencies `yaml:"-"`
+	DependencyInfo `yaml:",inline"`
+	Name           string   `yaml:"-"`
+	Project        *Project `yaml:"-"`
+	dirPath        string   `yaml:"-"`
 }
 
 type Dependencies map[string]Dependency
 
-func NewProject() *Project {
+func NewProject(path string) *Project {
 	return &Project{
 		Dependencies: make(map[string]Dependency),
+		filePath:     path,
 	}
 }
 
@@ -253,17 +264,31 @@ func (d Dependency) updateTransitive(targetDir string) error {
 			return err
 		}
 
-		transitiveRootDir := fmt.Sprintf("%s/_transitive", targetDir)
+		transitiveRootDir := dependenciesDir(targetDir)
 		for _, dep := range transitiveProject.Dependencies {
 			if err := dep.Update(transitiveRootDir); err != nil {
 				return err
 			}
 		}
 
-		d.TransitiveDependencies = transitiveProject.Dependencies
+		d.Project = transitiveProject
 	}
 
 	return nil
+}
+
+func (d Dependency) SourceDir() string {
+	if d.Project != nil && d.Project.SourceDir != "" {
+		return filepath.Join(d.dirPath, d.Project.SourceDir)
+	}
+	return d.dirPath
+}
+
+func (d Dependency) TestDir() string {
+	if d.Project != nil && d.Project.TestDir != "" {
+		return filepath.Join(d.dirPath, d.Project.TestDir)
+	}
+	return ""
 }
 
 func (p *Project) SetDependency(name string, info DependencyInfo) {
@@ -281,7 +306,7 @@ func ReadProjectFromFile(path string, allowMissing bool) (*Project, error) {
 
 	if !utils.FileExists(path) {
 		if allowMissing {
-			return NewProject(), nil
+			return NewProject(path), nil
 		} else {
 			return nil, fmt.Errorf("project file %s does not exist", path)
 		}
@@ -298,20 +323,92 @@ func ReadProjectFromFile(path string, allowMissing bool) (*Project, error) {
 		return nil, fmt.Errorf("failed to unmarshal project file %s: %w", path, err)
 	}
 
+	project.filePath = path
+
 	return &project, nil
 }
 
+func ReadAndLoadProject(path string, allowMissing bool) (*Project, error) {
+	project, err := ReadProjectFromFile(path, allowMissing)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := project.Load(); err != nil {
+		return nil, err
+	}
+
+	return project, nil
+}
+
+func (p *Project) Load() error {
+	rootDir := filepath.Dir(p.filePath)
+	depRootDir := dependenciesDir(rootDir)
+
+	for name, dep := range p.Dependencies {
+		dep.dirPath = filepath.Join(depRootDir, name)
+		depProjFile := normalizeProjectPath(dep.dirPath)
+		if utils.FileExists(depProjFile) {
+			var err error
+			if dep.Project, err = ReadProjectFromFile(depProjFile, true); err != nil {
+				return fmt.Errorf("failed reading dependency project from file: %w", err)
+			}
+			if err := dep.Project.Load(); err != nil {
+				return fmt.Errorf("failed loading dependency project: %w", err)
+			}
+		}
+		p.Dependencies[name] = dep
+	}
+
+	return nil
+}
+
 func (p *Project) DataLocations() ([]string, error) {
-	// TODO: Instead of hardcoding the ./.opa/dependencies directory, add each dependency's location individually; if the dependency has an opa.project file, only add the configured source directory
-	dataLocations := []string{"./.opa/dependencies"}
+	var dataLocations []string
+	projDir := filepath.Dir(p.filePath)
 	if p.SourceDir != "" {
-		if src, err := utils.NormalizeFilePath(p.SourceDir); err != nil {
+		if dir, err := utils.NormalizeFilePath(p.SourceDir); err != nil {
 			return nil, err
 		} else {
-			dataLocations = append(dataLocations, src)
+			dataLocations = append(dataLocations, filepath.Join(projDir, dir))
+		}
+	} else {
+		dataLocations = append(dataLocations, projDir)
+	}
+
+	err := WalkDependencies(p, func(dep Dependency) error {
+		dataLocations = append(dataLocations, dep.SourceDir())
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return dataLocations, nil
+}
+
+func (p *Project) TestLocations(includeDependencies bool) ([]string, error) {
+	var testLocations []string
+	projDir := filepath.Dir(p.filePath)
+	if p.TestDir != "" {
+		if dir, err := utils.NormalizeFilePath(p.TestDir); err != nil {
+			return nil, err
+		} else {
+			testLocations = append(testLocations, filepath.Join(projDir, dir))
 		}
 	}
-	return dataLocations, nil
+
+	if includeDependencies {
+		err := WalkDependencies(p, func(dep Dependency) error {
+			testLocations = append(testLocations, dep.TestDir())
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return testLocations, nil
 }
 
 func (p *Project) WriteToFile(path string, override bool) error {
@@ -335,6 +432,37 @@ func (p *Project) WriteToFile(path string, override bool) error {
 	return nil
 }
 
+func (p *Project) PrintTree(w io.Writer) error {
+	if err := p.printTree(w, "root", 0); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *Project) printTree(w io.Writer, name string, indent int) error {
+	indentStr := strings.Repeat(" ", indent*2)
+	if p == nil {
+		_, err := fmt.Fprintf(w, "%s%s\n", indentStr, name)
+		return err
+	}
+
+	if len(p.Name) > 0 {
+		if _, err := fmt.Fprintf(w, "%s%s (%s)\n", indentStr, name, p.Name); err != nil {
+			return err
+		}
+	} else {
+		if _, err := fmt.Fprintf(w, "%s%s\n", indentStr, name); err != nil {
+			return err
+		}
+	}
+	for _, dep := range p.Dependencies {
+		if err := dep.Project.printTree(w, dep.Name, indent+1); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func normalizeProjectPath(path string) string {
 	l := len(path)
 	if l >= 11 && path[l-11:] == "opa.project" {
@@ -344,4 +472,27 @@ func normalizeProjectPath(path string) string {
 	} else {
 		return path + "/opa.project"
 	}
+}
+
+func dependenciesDir(root string) string {
+	return filepath.Join(root, dotOpaDir, depDir)
+}
+
+func WalkDependencies(p *Project, f func(Dependency) error) error {
+	if p == nil {
+		return nil
+	}
+
+	for _, dep := range p.Dependencies {
+		if err := f(dep); err != nil {
+			return err
+		}
+		if dep.Project != nil {
+			if err := WalkDependencies(dep.Project, f); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

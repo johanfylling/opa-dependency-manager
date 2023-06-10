@@ -53,7 +53,7 @@ func doEval(projPath string, args []string) error {
 		printer.Info("no OPA flags provided")
 	}
 
-	project, err := proj.ReadProjectFromFile(projPath, true)
+	project, err := proj.ReadAndLoadProject(projPath, true)
 	if err != nil {
 		return err
 	}
