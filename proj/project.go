@@ -23,6 +23,7 @@ type Project struct {
 	Name         string       `yaml:"name,omitempty"`
 	Version      string       `yaml:"version,omitempty"`
 	SourceDir    string       `yaml:"source,omitempty"`
+	TestDir      string       `yaml:"test,omitempty"`
 	Dependencies Dependencies `yaml:"dependencies,omitempty"`
 	Build        Build        `yaml:"build,omitempty"`
 	filePath     string
@@ -283,6 +284,13 @@ func (d Dependency) SourceDir() string {
 	return d.dirPath
 }
 
+func (d Dependency) TestDir() string {
+	if d.Project != nil && d.Project.TestDir != "" {
+		return filepath.Join(d.dirPath, d.Project.TestDir)
+	}
+	return ""
+}
+
 func (p *Project) SetDependency(name string, info DependencyInfo) {
 	if p.Dependencies == nil {
 		p.Dependencies = make(map[string]Dependency)
@@ -359,28 +367,48 @@ func (p *Project) DataLocations() ([]string, error) {
 	var dataLocations []string
 	projDir := filepath.Dir(p.filePath)
 	if p.SourceDir != "" {
-		if src, err := utils.NormalizeFilePath(p.SourceDir); err != nil {
+		if dir, err := utils.NormalizeFilePath(p.SourceDir); err != nil {
 			return nil, err
 		} else {
-			dataLocations = append(dataLocations, filepath.Join(projDir, src))
+			dataLocations = append(dataLocations, filepath.Join(projDir, dir))
 		}
 	} else {
 		dataLocations = append(dataLocations, projDir)
 	}
 
-	for _, dep := range p.Dependencies {
-		if depProject := dep.Project; depProject != nil {
-			if childLocations, err := depProject.DataLocations(); err != nil {
-				return nil, err
-			} else {
-				dataLocations = append(dataLocations, childLocations...)
-			}
-		} else {
-			dataLocations = append(dataLocations, dep.SourceDir())
-		}
+	err := WalkDependencies(p, func(dep Dependency) error {
+		dataLocations = append(dataLocations, dep.SourceDir())
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return dataLocations, nil
+}
+
+func (p *Project) TestLocations(includeDependencies bool) ([]string, error) {
+	var testLocations []string
+	projDir := filepath.Dir(p.filePath)
+	if p.TestDir != "" {
+		if dir, err := utils.NormalizeFilePath(p.TestDir); err != nil {
+			return nil, err
+		} else {
+			testLocations = append(testLocations, filepath.Join(projDir, dir))
+		}
+	}
+
+	if includeDependencies {
+		err := WalkDependencies(p, func(dep Dependency) error {
+			testLocations = append(testLocations, dep.TestDir())
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return testLocations, nil
 }
 
 func (p *Project) WriteToFile(path string, override bool) error {
@@ -448,4 +476,23 @@ func normalizeProjectPath(path string) string {
 
 func dependenciesDir(root string) string {
 	return filepath.Join(root, dotOpaDir, depDir)
+}
+
+func WalkDependencies(p *Project, f func(Dependency) error) error {
+	if p == nil {
+		return nil
+	}
+
+	for _, dep := range p.Dependencies {
+		if err := f(dep); err != nil {
+			return err
+		}
+		if dep.Project != nil {
+			if err := WalkDependencies(dep.Project, f); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

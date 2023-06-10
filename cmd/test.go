@@ -11,6 +11,7 @@ import (
 
 func init() {
 	var noUpdate bool
+	var includeDeps bool
 
 	var testCommand = &cobra.Command{
 		Use:   "test [flags] -- [opa test flags]",
@@ -26,18 +27,19 @@ func init() {
 				}
 			}
 
-			if err := doTest(projPath, args); err != nil {
+			if err := doTest(projPath, includeDeps, args); err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "%s\n", err)
 				os.Exit(1)
 			}
 		},
 	}
 
+	testCommand.Flags().BoolVar(&includeDeps, "include-deps", false, "Include dependency tests")
 	addNoUpdateFlag(testCommand, &noUpdate)
 	RootCommand.AddCommand(testCommand)
 }
 
-func doTest(projPath string, args []string) error {
+func doTest(projPath string, includeDependencies bool, args []string) error {
 	printer.Trace("--- Test start ---")
 	defer printer.Trace("--- Test end ---")
 
@@ -50,6 +52,13 @@ func doTest(projPath string, args []string) error {
 	if err != nil {
 		return fmt.Errorf("error getting data locations: %s", err)
 	}
+
+	testLocations, err := project.TestLocations(includeDependencies)
+	if err != nil {
+		return fmt.Errorf("error getting test locations: %s", err)
+	}
+
+	dataLocations = append(dataLocations, testLocations...)
 
 	opa := utils.NewOpa(dataLocations)
 	if output, err := opa.Test(args...); err != nil {
