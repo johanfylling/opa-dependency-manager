@@ -23,7 +23,7 @@ type Project struct {
 	Name         string       `yaml:"name,omitempty"`
 	Version      string       `yaml:"version,omitempty"`
 	SourceDir    string       `yaml:"source,omitempty"`
-	TestDir      string       `yaml:"test,omitempty"`
+	TestDir      string       `yaml:"tests,omitempty"`
 	Dependencies Dependencies `yaml:"dependencies,omitempty"`
 	Build        Build        `yaml:"build,omitempty"`
 	filePath     string
