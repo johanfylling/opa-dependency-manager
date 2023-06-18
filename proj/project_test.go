@@ -305,6 +305,14 @@ dependencies:
 // .   +-- dep_c1 (opa.project, no source)
 // .   +-- dep_c2 (opa.project, source)
 func TestReadProjectFromFile(t *testing.T) {
+	depA := depId("dep_a", "file://dep_a")
+	depB := depId("dep_b", "file://dep_b")
+	depB1 := depId("dep_b1", "file://dep_b1")
+	depB2 := depId("dep_b2", "file://dep_b2")
+	depC := depId("dep_c", "file://dep_c")
+	depC1 := depId("dep_c1", "file://dep_c1")
+	depC2 := depId("dep_c2", "file://dep_c2")
+
 	files := map[string]string{
 		"opa.project": `name: proj
 source: src
@@ -313,27 +321,27 @@ dependencies:
   dep_b: file://dep_b
   dep_c: file://dep_c
 `,
-		"src/policy.rego":                     `package test`,
-		".opa/dependencies/dep_a/policy.rego": `package dep_a`,
-		".opa/dependencies/dep_b/opa.project": `name: dep_b
+		"src/policy.rego": `package test`,
+		filepath.Join(".opa", "dependencies", depA, "policy.rego"): `package dep_a`,
+		filepath.Join(".opa", "dependencies", depB, "opa.project"): `name: dep_b
 dependencies:
   dep_b1: file://dep_b1
   dep_b2: file://dep_b2`,
-		".opa/dependencies/dep_b/.opa/dependencies/dep_b1/policy.rego": `package dep_b1`,
-		".opa/dependencies/dep_b/.opa/dependencies/dep_b2/opa.project": `name: dep_b2
+		filepath.Join(".opa", "dependencies", depB1, "policy.rego"): `package dep_b1`,
+		filepath.Join(".opa", "dependencies", depB2, "opa.project"): `name: dep_b2
 source: foo`,
-		".opa/dependencies/dep_b/.opa/dependencies/dep_b2/foobar/policy.rego": `package dep_b2`,
-		".opa/dependencies/dep_c/opa.project": `name: dep_c
+		filepath.Join(".opa", "dependencies", depB2, "foobar", "policy.rego"): `package dep_b2`,
+		filepath.Join(".opa", "dependencies", depC, "opa.project"): `name: dep_c
 source: bar
 dependencies:
   dep_c1: file://dep_c1
   dep_c2: file://dep_c2`,
-		".opa/dependencies/dep_c/bar/policy.rego":                      `package dep_c`,
-		".opa/dependencies/dep_c/.opa/dependencies/dep_c1/opa.project": `name: dep_c1`,
-		".opa/dependencies/dep_c/.opa/dependencies/dep_c1/policy.rego": `package dep_c1`,
-		".opa/dependencies/dep_c/.opa/dependencies/dep_c2/opa.project": `name: dep_c2
+		filepath.Join(".opa", "dependencies", depC, "bar", "policy.rego"): `package dep_c`,
+		filepath.Join(".opa", "dependencies", depC1, "opa.project"):       `name: dep_c1`,
+		filepath.Join(".opa", "dependencies", depC1, "policy.rego"):       `package dep_c1`,
+		filepath.Join(".opa", "dependencies", depC2, "opa.project"): `name: dep_c2
 source: baz`,
-		".opa/dependencies/dep_c/.opa/dependencies/dep_c2/baz/policy.rego": `package dep_c2`,
+		filepath.Join(".opa", "dependencies", depC2, "baz", "policy.rego"): `package dep_c2`,
 	}
 	err := withTempFiles(files, func(path string) {
 		fmt.Println(path)
@@ -353,13 +361,13 @@ source: baz`,
 
 		expected := []string{
 			filepath.Join(path, "src"),
-			filepath.Join(path, ".opa/dependencies/dep_a"),
-			filepath.Join(path, ".opa/dependencies/dep_b"),
-			filepath.Join(path, ".opa/dependencies/dep_b/.opa/dependencies/dep_b1"),
-			filepath.Join(path, ".opa/dependencies/dep_b/.opa/dependencies/dep_b2/foo"),
-			filepath.Join(path, ".opa/dependencies/dep_c/bar"),
-			filepath.Join(path, ".opa/dependencies/dep_c/.opa/dependencies/dep_c1"),
-			filepath.Join(path, ".opa/dependencies/dep_c/.opa/dependencies/dep_c2/baz"),
+			filepath.Join(path, ".opa", "dependencies", depA),
+			filepath.Join(path, ".opa", "dependencies", depB),
+			filepath.Join(path, ".opa", "dependencies", depB1),
+			filepath.Join(path, ".opa", "dependencies", depB2, "foo"),
+			filepath.Join(path, ".opa", "dependencies", depC, "bar"),
+			filepath.Join(path, ".opa", "dependencies", depC1),
+			filepath.Join(path, ".opa", "dependencies", depC2, "baz"),
 		}
 
 		if len(dataLocations) != len(expected) {

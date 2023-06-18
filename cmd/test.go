@@ -60,7 +60,7 @@ func doTest(projPath string, includeDependencies bool, args []string) error {
 
 	dataLocations = append(dataLocations, testLocations...)
 
-	opa := utils.NewOpa(dataLocations)
+	opa := utils.NewOpa(dataLocations...)
 	if output, err := opa.Test(args...); err != nil {
 		return fmt.Errorf("error running opa test:\n %s", err)
 	} else {

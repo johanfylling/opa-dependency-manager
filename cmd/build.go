@@ -72,7 +72,7 @@ func doBuild(projPath string, args []string) error {
 		return fmt.Errorf("error getting data locations: %s", err)
 	}
 
-	opa := utils.NewOpa(dataLocations).
+	opa := utils.NewOpa(dataLocations...).
 		WithEntrypoints(project.Build.Entrypoints).
 		WithTarget(project.Build.Target)
 	if output, err := opa.Build(outputPath, args...); err != nil {

@@ -132,18 +132,23 @@ func (d Dependency) MarshalYAML() (interface{}, error) {
 	}, nil
 }
 
-func (d Dependency) Update(rootDir string) error {
-	var id string
-	if d.Name != "" {
-		id = d.Name
-	} else {
-		// Should never happen, as dependencies are keyed by their name
-		h := sha256.New()
-		h.Write([]byte(d.Location))
-		id = fmt.Sprintf("%x", h.Sum(nil))
-	}
+func (d Dependency) id() string {
+	return depId(d.Namespace, d.Location)
+}
 
-	targetDir := fmt.Sprintf("%s/%s", rootDir, id)
+func depId(namespace, location string) string {
+	cleartext := fmt.Sprintf("%s:%s", namespace, location)
+	h := sha256.New()
+	h.Write([]byte(cleartext))
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+func (d Dependency) dir(rootDir string) string {
+	return filepath.Join(rootDir, d.id())
+}
+
+func (d Dependency) Update(rootDir string) error {
+	targetDir := d.dir(rootDir)
 
 	if err := os.RemoveAll(targetDir); err != nil {
 		return err
@@ -172,13 +177,33 @@ func (d Dependency) Update(rootDir string) error {
 		return fmt.Errorf("unsupported dependency location: %s", d.Location)
 	}
 
-	if err := d.updateTransitive(targetDir); err != nil {
+	depProjectFile := fmt.Sprintf("%s/opa.project", targetDir)
+	if utils.FileExists(depProjectFile) {
+		var err error
+		d.Project, err = ReadProjectFromFile(depProjectFile, false)
+		if err != nil {
+			return err
+		}
+	}
+	d.dirPath = targetDir
+
+	if err := d.updateTransitive(rootDir); err != nil {
 		return fmt.Errorf("failed to update transitive dependencies for %s: %w", d.Namespace, err)
 	}
 
 	if d.Namespace != "" {
-		mapping := fmt.Sprintf("data:data.%s", d.Namespace)
-		if _, err := utils.RunCommand("opa", "refactor", "move", "-w", "-p", mapping, targetDir); err != nil {
+		var dirs []string
+		if dir := d.SourceDir(); dir != "" {
+			dirs = append(dirs, dir)
+		} else {
+			dirs = append(dirs, targetDir)
+		}
+		if dir := d.TestDir(); dir != "" {
+			dirs = append(dirs, dir)
+		}
+
+		opa := utils.NewOpa(dirs...)
+		if err := opa.Refactor("data", fmt.Sprintf("data.%s", d.Namespace)); err != nil {
 			return fmt.Errorf("failed to refactor namespace %s: %w", d.Namespace, err)
 		}
 	}
@@ -255,23 +280,14 @@ func parseGitUrl(fullUrl string) (url string, tag string, err error) {
 }
 
 func (d Dependency) updateTransitive(targetDir string) error {
-	printer.Debug("Updating transitive dependencies for %s", d.Namespace)
+	printer.Debug("Updating transitive dependencies for %s (%s)", d.Namespace, d.id())
 
-	transitiveProjectFile := fmt.Sprintf("%s/opa.project", targetDir)
-	if utils.FileExists(transitiveProjectFile) {
-		transitiveProject, err := ReadProjectFromFile(transitiveProjectFile, false)
-		if err != nil {
-			return err
-		}
-
-		transitiveRootDir := dependenciesDir(targetDir)
-		for _, dep := range transitiveProject.Dependencies {
-			if err := dep.Update(transitiveRootDir); err != nil {
+	if d.Project != nil {
+		for _, dep := range d.Project.Dependencies {
+			if err := dep.Update(targetDir); err != nil {
 				return err
 			}
 		}
-
-		d.Project = transitiveProject
 	}
 
 	return nil
@@ -343,17 +359,21 @@ func ReadAndLoadProject(path string, allowMissing bool) (*Project, error) {
 
 func (p *Project) Load() error {
 	rootDir := filepath.Dir(p.filePath)
+	return p.load(rootDir)
+}
+
+func (p *Project) load(rootDir string) error {
 	depRootDir := dependenciesDir(rootDir)
 
 	for name, dep := range p.Dependencies {
-		dep.dirPath = filepath.Join(depRootDir, name)
+		dep.dirPath = dep.dir(depRootDir)
 		depProjFile := normalizeProjectPath(dep.dirPath)
 		if utils.FileExists(depProjFile) {
 			var err error
 			if dep.Project, err = ReadProjectFromFile(depProjFile, true); err != nil {
 				return fmt.Errorf("failed reading dependency project from file: %w", err)
 			}
-			if err := dep.Project.Load(); err != nil {
+			if err := dep.Project.load(rootDir); err != nil {
 				return fmt.Errorf("failed loading dependency project: %w", err)
 			}
 		}

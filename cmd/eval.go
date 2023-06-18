@@ -63,7 +63,7 @@ func doEval(projPath string, args []string) error {
 		return fmt.Errorf("error getting data locations: %s", err)
 	}
 
-	opa := utils.NewOpa(dataLocations)
+	opa := utils.NewOpa(dataLocations...)
 	if output, err := opa.Eval(args...); err != nil {
 		return fmt.Errorf("error running opa eval:\n %s", err)
 	} else {
