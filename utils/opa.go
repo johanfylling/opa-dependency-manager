@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"github.com/johanfylling/odm/printer"
 	"os"
 )
@@ -12,11 +13,13 @@ type Opa struct {
 	target        string
 }
 
-func NewOpa(dataLocations []string) *Opa {
+func NewOpa(dataLocations ...string) *Opa {
 	location, ok := os.LookupEnv("OPA_PATH")
 	if !ok {
 		location = "opa"
 	}
+
+	printer.Debug("Creating OPA instance\nlocation: %s\ndata: %v", location, dataLocations)
 
 	return &Opa{
 		location:      location,
@@ -75,6 +78,22 @@ func (o *Opa) Build(outputPath string, passThroughFlags ...string) (string, erro
 	opaArgs = prefixDataLocations(o.dataLocations, opaArgs, false)
 
 	return runOpaCommand(o.location, "build", opaArgs...)
+}
+
+func (o *Opa) Refactor(fromPackage, toPackage string) error {
+	printer.Info("Running OPA refactor")
+	printer.Debug("From package: %s", fromPackage)
+	printer.Debug("To package: %s", toPackage)
+
+	mapping := fmt.Sprintf("%s:%s", fromPackage, toPackage)
+
+	opaArgs := make([]string, 0, 4+len(o.dataLocations))
+	opaArgs = append(opaArgs, "move")
+	opaArgs = append(opaArgs, o.dataLocations...)
+	opaArgs = append(opaArgs, "-w", "-p", mapping)
+
+	_, err := runOpaCommand(o.location, "refactor", opaArgs...)
+	return err
 }
 
 func runOpaCommand(opaLocation string, command string, flags ...string) (string, error) {
