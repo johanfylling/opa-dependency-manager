@@ -10,7 +10,6 @@ import (
 )
 
 func TestEvalProjects(t *testing.T) {
-	printer.LogLevel = printer.TraceLevel
 	_, file, _, _ := runtime.Caller(0)
 	rootDir := filepath.Dir(file)
 
