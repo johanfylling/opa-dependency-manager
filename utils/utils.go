@@ -16,6 +16,16 @@ func FileExists(path string) bool {
 	return !os.IsNotExist(err)
 }
 
+func FilterExistingFiles(dirs []string) []string {
+	var result []string
+	for _, dir := range dirs {
+		if FileExists(dir) {
+			result = append(result, dir)
+		}
+	}
+	return result
+}
+
 func IsDir(path string) bool {
 	info, err := os.Stat(path)
 	if err != nil {

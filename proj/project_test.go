@@ -18,9 +18,9 @@ func TestMarshalProject(t *testing.T) {
 		{
 			note: "no dependencies",
 			project: &Project{
-				Name:      "test_project",
-				Version:   "0.0.1",
-				SourceDir: "src",
+				Name:       "test_project",
+				Version:    "0.0.1",
+				SourceDirs: []string{"src"},
 			},
 			expected: `name: test_project
 version: 0.0.1
@@ -30,9 +30,9 @@ source: src
 		{
 			note: "file dependency with only name & location",
 			project: &Project{
-				Name:      "test_project",
-				Version:   "0.0.1",
-				SourceDir: "src",
+				Name:       "test_project",
+				Version:    "0.0.1",
+				SourceDirs: []string{"src"},
 				Dependencies: Dependencies{
 					"foo": Dependency{
 						Name: "foo",
@@ -53,9 +53,9 @@ dependencies:
 		{
 			note: "file dependency with no namespace",
 			project: &Project{
-				Name:      "test_project",
-				Version:   "0.0.1",
-				SourceDir: "src",
+				Name:       "test_project",
+				Version:    "0.0.1",
+				SourceDirs: []string{"src"},
 				Dependencies: Dependencies{
 					"foo": Dependency{
 						Name: "foo",
@@ -78,9 +78,9 @@ dependencies:
 		{
 			note: "file dependency with named namespace",
 			project: &Project{
-				Name:      "test_project",
-				Version:   "0.0.1",
-				SourceDir: "src",
+				Name:       "test_project",
+				Version:    "0.0.1",
+				SourceDirs: []string{"src"},
 				Dependencies: Dependencies{
 					"foo": Dependency{
 						Name: "foo",
@@ -103,9 +103,9 @@ dependencies:
 		{
 			note: "git dependency with only name & location",
 			project: &Project{
-				Name:      "test_project",
-				Version:   "0.0.1",
-				SourceDir: "src",
+				Name:       "test_project",
+				Version:    "0.0.1",
+				SourceDirs: []string{"src"},
 				Dependencies: Dependencies{
 					"foo": Dependency{
 						Name: "foo",
@@ -152,9 +152,9 @@ version: 0.0.1
 source: src
 `,
 			expected: &Project{
-				Name:      "test_project",
-				Version:   "0.0.1",
-				SourceDir: "src",
+				Name:       "test_project",
+				Version:    "0.0.1",
+				SourceDirs: []string{"src"},
 			},
 		},
 		{
@@ -166,9 +166,9 @@ dependencies:
     foo: file://dev/null
 `,
 			expected: &Project{
-				Name:      "test_project",
-				Version:   "0.0.1",
-				SourceDir: "src",
+				Name:       "test_project",
+				Version:    "0.0.1",
+				SourceDirs: []string{"src"},
 
 				Dependencies: Dependencies{
 					"foo": Dependency{
@@ -191,9 +191,9 @@ dependencies:
         location: file://dev/null
 `,
 			expected: &Project{
-				Name:      "test_project",
-				Version:   "0.0.1",
-				SourceDir: "src",
+				Name:       "test_project",
+				Version:    "0.0.1",
+				SourceDirs: []string{"src"},
 
 				Dependencies: Dependencies{
 					"foo": Dependency{
@@ -217,9 +217,9 @@ dependencies:
         namespace: false
 `,
 			expected: &Project{
-				Name:      "test_project",
-				Version:   "0.0.1",
-				SourceDir: "src",
+				Name:       "test_project",
+				Version:    "0.0.1",
+				SourceDirs: []string{"src"},
 				Dependencies: Dependencies{
 					"foo": Dependency{
 						Name: "foo",
@@ -242,9 +242,9 @@ dependencies:
         namespace: bar
 `,
 			expected: &Project{
-				Name:      "test_project",
-				Version:   "0.0.1",
-				SourceDir: "src",
+				Name:       "test_project",
+				Version:    "0.0.1",
+				SourceDirs: []string{"src"},
 				Dependencies: Dependencies{
 					"foo": Dependency{
 						Name: "foo",
@@ -265,9 +265,9 @@ dependencies:
     foo: git+https://example.com/my/repo
 `,
 			expected: &Project{
-				Name:      "test_project",
-				Version:   "0.0.1",
-				SourceDir: "src",
+				Name:       "test_project",
+				Version:    "0.0.1",
+				SourceDirs: []string{"src"},
 				Dependencies: Dependencies{
 					"foo": Dependency{
 						Name: "foo",
@@ -305,13 +305,13 @@ dependencies:
 // .   +-- dep_c1 (opa.project, no source)
 // .   +-- dep_c2 (opa.project, source)
 func TestReadProjectFromFile(t *testing.T) {
-	depA := depId("dep_a", "file://dep_a")
-	depB := depId("dep_b", "file://dep_b")
-	depB1 := depId("dep_b1", "file://dep_b1")
-	depB2 := depId("dep_b2", "file://dep_b2")
-	depC := depId("dep_c", "file://dep_c")
-	depC1 := depId("dep_c1", "file://dep_c1")
-	depC2 := depId("dep_c2", "file://dep_c2")
+	depA := DepId("dep_a", "file://dep_a")
+	depB := DepId("dep_b", "file://dep_b")
+	depB1 := DepId("dep_b.dep_b1", "file://dep_b1")
+	depB2 := DepId("dep_b.dep_b2", "file://dep_b2")
+	depC := DepId("dep_c", "file://dep_c")
+	depC1 := DepId("dep_c.dep_c1", "file://dep_c1")
+	depC2 := DepId("dep_c.dep_c2", "file://dep_c2")
 
 	files := map[string]string{
 		"opa.project": `name: proj
@@ -330,7 +330,7 @@ dependencies:
 		filepath.Join(".opa", "dependencies", depB1, "policy.rego"): `package dep_b1`,
 		filepath.Join(".opa", "dependencies", depB2, "opa.project"): `name: dep_b2
 source: foo`,
-		filepath.Join(".opa", "dependencies", depB2, "foobar", "policy.rego"): `package dep_b2`,
+		filepath.Join(".opa", "dependencies", depB2, "foo", "policy.rego"): `package dep_b2`,
 		filepath.Join(".opa", "dependencies", depC, "opa.project"): `name: dep_c
 source: bar
 dependencies:

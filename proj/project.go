@@ -22,11 +22,20 @@ const (
 type Project struct {
 	Name         string       `yaml:"name,omitempty"`
 	Version      string       `yaml:"version,omitempty"`
-	SourceDir    string       `yaml:"source,omitempty"`
-	TestDir      string       `yaml:"tests,omitempty"`
+	SourceDirs   []string     `yaml:"source,omitempty"`
+	TestDirs     []string     `yaml:"tests,omitempty"`
 	Dependencies Dependencies `yaml:"dependencies,omitempty"`
 	Build        Build        `yaml:"build,omitempty"`
 	filePath     string
+}
+
+type ProjectSerialization struct {
+	Name         string       `yaml:"name,omitempty"`
+	Version      string       `yaml:"version,omitempty"`
+	Source       interface{}  `yaml:"source,omitempty"`
+	Test         interface{}  `yaml:"tests,omitempty"`
+	Dependencies Dependencies `yaml:"dependencies,omitempty"`
+	Build        Build        `yaml:"build,omitempty"`
 }
 
 type Build struct {
@@ -41,10 +50,11 @@ type DependencyInfo struct {
 }
 
 type Dependency struct {
-	DependencyInfo `yaml:",inline"`
-	Name           string   `yaml:"-"`
-	Project        *Project `yaml:"-"`
-	dirPath        string   `yaml:"-"`
+	DependencyInfo   `yaml:",inline"`
+	Name             string      `yaml:"-"`
+	Project          *Project    `yaml:"-"`
+	ParentDependency *Dependency `yaml:"-"`
+	dirPath          string      `yaml:"-"`
 }
 
 type Dependencies map[string]Dependency
@@ -133,10 +143,10 @@ func (d Dependency) MarshalYAML() (interface{}, error) {
 }
 
 func (d Dependency) id() string {
-	return depId(d.Namespace, d.Location)
+	return DepId(d.fullNamespace(), d.Location)
 }
 
-func depId(namespace, location string) string {
+func DepId(namespace, location string) string {
 	cleartext := fmt.Sprintf("%s:%s", namespace, location)
 	h := sha256.New()
 	h.Write([]byte(cleartext))
@@ -147,8 +157,8 @@ func (d Dependency) dir(rootDir string) string {
 	return filepath.Join(rootDir, d.id())
 }
 
-func (d Dependency) Update(rootDir string) error {
-	targetDir := d.dir(rootDir)
+func (d Dependency) Update(rootDir, depsRootDir string) error {
+	targetDir := d.dir(depsRootDir)
 
 	if err := os.RemoveAll(targetDir); err != nil {
 		return err
@@ -170,7 +180,7 @@ func (d Dependency) Update(rootDir string) error {
 	} else if strings.HasPrefix(d.Location, "file:") {
 		printer.Debug("Updating git dependency %s", d.Namespace)
 		printer.Debug("Updating transitive dependencies for %s", d.Namespace)
-		if err := d.updateLocal(targetDir); err != nil {
+		if err := d.updateLocal(rootDir, targetDir); err != nil {
 			return err
 		}
 	} else {
@@ -187,34 +197,58 @@ func (d Dependency) Update(rootDir string) error {
 	}
 	d.dirPath = targetDir
 
-	if err := d.updateTransitive(rootDir); err != nil {
+	if err := d.updateTransitive(rootDir, depsRootDir); err != nil {
 		return fmt.Errorf("failed to update transitive dependencies for %s: %w", d.Namespace, err)
 	}
 
-	if d.Namespace != "" {
+	if namespace := d.fullNamespace(); namespace != "" {
 		var dirs []string
-		if dir := d.SourceDir(); dir != "" {
-			dirs = append(dirs, dir)
+		if srcDirs := d.SourceDirs(); len(srcDirs) > 0 {
+			dirs = append(dirs, srcDirs...)
 		} else {
 			dirs = append(dirs, targetDir)
 		}
-		if dir := d.TestDir(); dir != "" {
-			dirs = append(dirs, dir)
-		}
+		dirs = append(dirs, d.TestDirs()...)
+		dirs = utils.FilterExistingFiles(dirs)
 
-		opa := utils.NewOpa(dirs...)
-		if err := opa.Refactor("data", fmt.Sprintf("data.%s", d.Namespace)); err != nil {
-			return fmt.Errorf("failed to refactor namespace %s: %w", d.Namespace, err)
+		if len(dirs) > 0 {
+			opa := utils.NewOpa(dirs...)
+			if err := opa.Refactor("data", fmt.Sprintf("data.%s", namespace)); err != nil {
+				return fmt.Errorf("failed to refactor namespace %s: %w", d.Namespace, err)
+			}
+		} else {
+			printer.Debug("Dependency %s has no source, skipping namespace refactoring", d.Name)
 		}
 	}
 
 	return nil
 }
 
-func (d Dependency) updateLocal(targetDir string) error {
+func (d Dependency) Load(rootDir, targetDir string) (*Dependency, error) {
+	targetDir = d.dir(targetDir)
+	d.dirPath = targetDir
+	depProjectFile := fmt.Sprintf("%s/opa.project", targetDir)
+	if utils.FileExists(depProjectFile) {
+		var err error
+		d.Project, err = ReadProjectFromFile(depProjectFile, false)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if err := d.loadTransitive(rootDir, targetDir); err != nil {
+		return nil, fmt.Errorf("failed to update transitive dependencies for %s: %w", d.Namespace, err)
+	}
+	return &d, nil
+}
+
+func (d Dependency) updateLocal(rootDir, targetDir string) error {
 	sourceLocation, err := utils.NormalizeFilePath(d.Location)
 	if err != nil {
 		return err
+	}
+
+	if !filepath.IsAbs(sourceLocation) {
+		sourceLocation = filepath.Join(rootDir, sourceLocation)
 	}
 
 	if !utils.FileExists(sourceLocation) {
@@ -279,13 +313,16 @@ func parseGitUrl(fullUrl string) (url string, tag string, err error) {
 	return
 }
 
-func (d Dependency) updateTransitive(targetDir string) error {
-	printer.Debug("Updating transitive dependencies for %s (%s)", d.Namespace, d.id())
+func (d Dependency) loadTransitive(rootDir, targetDir string) error {
+	printer.Debug("Loading transitive dependencies for %s (%s)", d.Namespace, d.id())
 
 	if d.Project != nil {
-		for _, dep := range d.Project.Dependencies {
-			if err := dep.Update(targetDir); err != nil {
+		for i, dep := range d.Project.Dependencies {
+			if dep, err := dep.Load(rootDir, targetDir); err != nil {
 				return err
+			} else {
+				dep.ParentDependency = &d
+				d.Project.Dependencies[i] = *dep
 			}
 		}
 	}
@@ -293,18 +330,120 @@ func (d Dependency) updateTransitive(targetDir string) error {
 	return nil
 }
 
-func (d Dependency) SourceDir() string {
-	if d.Project != nil && d.Project.SourceDir != "" {
-		return filepath.Join(d.dirPath, d.Project.SourceDir)
+func (d Dependency) updateTransitive(rootDir, targetDir string) error {
+	printer.Debug("Updating transitive dependencies for %s (%s)", d.Namespace, d.id())
+
+	if d.Project != nil {
+		for name, dep := range d.Project.Dependencies {
+			dep.ParentDependency = &d
+			if err := dep.Update(rootDir, targetDir); err != nil {
+				return err
+			}
+			d.Project.Dependencies[name] = dep
+		}
 	}
-	return d.dirPath
+
+	return nil
 }
 
-func (d Dependency) TestDir() string {
-	if d.Project != nil && d.Project.TestDir != "" {
-		return filepath.Join(d.dirPath, d.Project.TestDir)
+func (d Dependency) fullNamespace() string {
+	if d.ParentDependency != nil && d.ParentDependency.Namespace != "" {
+		if parentNamespace := d.ParentDependency.fullNamespace(); parentNamespace != "" {
+			if d.Namespace == "" {
+				return parentNamespace
+			}
+			return fmt.Sprintf("%s.%s", parentNamespace, d.Namespace)
+		}
 	}
-	return ""
+	return d.Namespace
+}
+
+func (d Dependency) SourceDirs() []string {
+	if d.Project != nil && len(d.Project.SourceDirs) > 0 {
+		dirs := make([]string, 0, len(d.Project.SourceDirs))
+		for _, dir := range d.Project.SourceDirs {
+			dirs = append(dirs, filepath.Join(d.dirPath, dir))
+		}
+		return dirs
+	}
+	return []string{d.dirPath}
+}
+
+func (d Dependency) TestDirs() []string {
+	if d.Project != nil && len(d.Project.TestDirs) > 0 {
+		dirs := make([]string, 0, len(d.Project.TestDirs))
+		for _, dir := range d.Project.TestDirs {
+			dirs = append(dirs, filepath.Join(d.dirPath, dir))
+		}
+		return dirs
+	}
+	return []string{}
+}
+
+func (p *Project) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var raw ProjectSerialization
+	if err := unmarshal(&raw); err != nil {
+		return err
+	}
+
+	p.Name = raw.Name
+	p.Version = raw.Version
+	p.Dependencies = raw.Dependencies
+	p.Build = raw.Build
+
+	var err error
+	p.SourceDirs, err = unmarshalDirs(raw.Source)
+	if err != nil {
+		return fmt.Errorf("invalid source: %w", err)
+	}
+
+	p.TestDirs, err = unmarshalDirs(raw.Test)
+	if err != nil {
+		return fmt.Errorf("invalid tests: %w", err)
+	}
+
+	return nil
+}
+
+func (p Project) MarshalYAML() (interface{}, error) {
+	var raw ProjectSerialization
+	raw.Name = p.Name
+	raw.Version = p.Version
+	raw.Dependencies = p.Dependencies
+	raw.Build = p.Build
+	if len(p.SourceDirs) == 1 {
+		raw.Source = p.SourceDirs[0]
+	} else if len(p.SourceDirs) > 1 {
+		raw.Source = p.SourceDirs
+	}
+	if len(p.TestDirs) == 1 {
+		raw.Test = p.TestDirs[0]
+	} else if len(p.TestDirs) > 1 {
+		raw.Test = p.TestDirs
+	}
+	return raw, nil
+}
+
+func unmarshalDirs(raw interface{}) ([]string, error) {
+	switch t := raw.(type) {
+	case nil:
+		return nil, nil
+	case string:
+		return []string{t}, nil
+	case []string:
+		return t, nil
+	case []interface{}:
+		dirs := make([]string, len(t))
+		for i, v := range t {
+			var ok bool
+			if dirs[i], ok = v.(string); !ok {
+				return nil, fmt.Errorf("invalid dir type %T", v)
+			}
+		}
+		return dirs, nil
+	default:
+		return nil, fmt.Errorf("invalid dir type %T", t)
+	}
 }
 
 func (p *Project) SetDependency(name string, info DependencyInfo) {
@@ -357,6 +496,24 @@ func ReadAndLoadProject(path string, allowMissing bool) (*Project, error) {
 	return project, nil
 }
 
+func (p *Project) Update() error {
+	rootDir := filepath.Dir(p.filePath)
+	return p.update(rootDir)
+}
+
+func (p *Project) update(rootDir string) error {
+	depRootDir := dependenciesDir(rootDir)
+
+	for name, dep := range p.Dependencies {
+		if err := dep.Update(rootDir, depRootDir); err != nil {
+			return fmt.Errorf("failed to update dependency %s: %w", name, err)
+		}
+		p.Dependencies[name] = dep
+	}
+
+	return nil
+}
+
 func (p *Project) Load() error {
 	rootDir := filepath.Dir(p.filePath)
 	return p.load(rootDir)
@@ -366,13 +523,13 @@ func (p *Project) load(rootDir string) error {
 	depRootDir := dependenciesDir(rootDir)
 
 	for name, dep := range p.Dependencies {
-		dep.dirPath = dep.dir(depRootDir)
-		depProjFile := normalizeProjectPath(dep.dirPath)
-		if utils.FileExists(depProjFile) {
-			var err error
-			if dep.Project, err = ReadProjectFromFile(depProjFile, true); err != nil {
-				return fmt.Errorf("failed reading dependency project from file: %w", err)
-			}
+		// Load, don't update dependencies, this is done separately
+		if loadedDep, err := dep.Load(rootDir, depRootDir); err != nil {
+			return fmt.Errorf("failed to load dependency %s: %w", name, err)
+		} else {
+			dep = *loadedDep
+		}
+		if dep.Project != nil {
 			if err := dep.Project.load(rootDir); err != nil {
 				return fmt.Errorf("failed loading dependency project: %w", err)
 			}
@@ -386,23 +543,27 @@ func (p *Project) load(rootDir string) error {
 func (p *Project) DataLocations() ([]string, error) {
 	var dataLocations []string
 	projDir := filepath.Dir(p.filePath)
-	if p.SourceDir != "" {
-		if dir, err := utils.NormalizeFilePath(p.SourceDir); err != nil {
-			return nil, err
-		} else {
-			dataLocations = append(dataLocations, filepath.Join(projDir, dir))
+	if len(p.SourceDirs) > 0 {
+		for _, dir := range p.SourceDirs {
+			if dir, err := utils.NormalizeFilePath(dir); err != nil {
+				return nil, err
+			} else {
+				dataLocations = append(dataLocations, filepath.Join(projDir, dir))
+			}
 		}
 	} else {
 		dataLocations = append(dataLocations, projDir)
 	}
 
 	err := WalkDependencies(p, func(dep Dependency) error {
-		dataLocations = append(dataLocations, dep.SourceDir())
+		dataLocations = append(dataLocations, dep.SourceDirs()...)
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
+
+	dataLocations = utils.FilterExistingFiles(dataLocations)
 
 	return dataLocations, nil
 }
@@ -410,17 +571,19 @@ func (p *Project) DataLocations() ([]string, error) {
 func (p *Project) TestLocations(includeDependencies bool) ([]string, error) {
 	var testLocations []string
 	projDir := filepath.Dir(p.filePath)
-	if p.TestDir != "" {
-		if dir, err := utils.NormalizeFilePath(p.TestDir); err != nil {
-			return nil, err
-		} else {
-			testLocations = append(testLocations, filepath.Join(projDir, dir))
+	if len(p.TestDirs) > 0 {
+		for _, dir := range p.TestDirs {
+			if dir, err := utils.NormalizeFilePath(dir); err != nil {
+				return nil, err
+			} else {
+				testLocations = append(testLocations, filepath.Join(projDir, dir))
+			}
 		}
 	}
 
 	if includeDependencies {
 		err := WalkDependencies(p, func(dep Dependency) error {
-			testLocations = append(testLocations, dep.TestDir())
+			testLocations = append(testLocations, dep.TestDirs()...)
 			return nil
 		})
 		if err != nil {
@@ -481,6 +644,10 @@ func (p *Project) printTree(w io.Writer, name string, indent int) error {
 		}
 	}
 	return nil
+}
+
+func (p *Project) Dir() string {
+	return filepath.Dir(p.filePath)
 }
 
 func normalizeProjectPath(path string) string {

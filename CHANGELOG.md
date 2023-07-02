@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 - Flattened dependency directory structure ([#21](https://github.com/johanfylling/opa-dependency-manager/issues/21))
 - Added `list source` command for enumerating source directories
+- Added support for listing multiple `source` and `test` directories in `opa.project`
 
 ## [0.2.0]
 

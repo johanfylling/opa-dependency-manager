@@ -1,0 +1,5 @@
+name: Source List
+source:
+  - src
+  - data
+tests: test

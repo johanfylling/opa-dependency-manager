@@ -1,0 +1,5 @@
+name: Local Dependencies
+source: src
+dependencies:
+  empty: file:/../empty
+  no_deps: file:/../no-dependencies
