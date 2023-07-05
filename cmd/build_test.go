@@ -42,7 +42,7 @@ func TestBuildProjects(t *testing.T) {
 			cleanup:        "build",
 			bundleContent: []string{
 				"/data.json",
-				"/Users/johan/styra/odm/cmd/testdata/projects/no-dependencies/src/policy.rego",
+				"/src/policy.rego",
 			},
 		},
 		{
