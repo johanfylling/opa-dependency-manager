@@ -7,6 +7,7 @@ import (
 	"github.com/johanfylling/odm/utils"
 	"github.com/spf13/cobra"
 	"os"
+	"path/filepath"
 )
 
 func init() {
@@ -37,11 +38,11 @@ func doUpdate(projectPath string) error {
 
 	printer.Info("Updating project '%s'", project.Name)
 
-	rootDir := ".opa"
-	depRootDir := fmt.Sprintf("%s/dependencies", rootDir)
+	dotOpaDir := filepath.Join(project.Dir(), ".opa")
+	depRootDir := fmt.Sprintf("%s/dependencies", dotOpaDir)
 
-	if !utils.FileExists(rootDir) {
-		if err := os.Mkdir(rootDir, 0755); err != nil {
+	if !utils.FileExists(dotOpaDir) {
+		if err := os.Mkdir(dotOpaDir, 0755); err != nil {
 			return err
 		}
 	}
@@ -54,10 +55,8 @@ func doUpdate(projectPath string) error {
 		return err
 	}
 
-	for _, dependency := range project.Dependencies {
-		if err := dependency.Update(depRootDir); err != nil {
-			return err
-		}
+	if err := project.Update(); err != nil {
+		return err
 	}
 
 	return nil

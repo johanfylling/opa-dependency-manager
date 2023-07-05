@@ -60,9 +60,12 @@ func doBuild(projPath string, args []string) error {
 	}
 
 	if outputDir != "" {
+		outputDir = filepath.Join(project.Dir(), outputDir)
 		if err := utils.MakeDir(outputDir); err != nil {
 			return fmt.Errorf("error creating build directory: %s", err)
 		}
+	} else {
+		outputDir = project.Dir()
 	}
 
 	outputPath := filepath.Join(filepath.Clean(outputDir), outputFile)

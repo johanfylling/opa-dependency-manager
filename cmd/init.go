@@ -50,7 +50,7 @@ func doInit(path string, name string, sourceDir string) error {
 	printer.Info("initializing OPA project: %s", name)
 
 	if sourceDir != "" {
-		project.SourceDir = sourceDir
+		project.SourceDirs = []string{sourceDir}
 	}
 
 	if !utils.FileExists(path) {

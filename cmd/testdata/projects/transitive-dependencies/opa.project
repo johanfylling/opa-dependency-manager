@@ -1,0 +1,8 @@
+name: Local Dependencies
+source: src
+dependencies:
+  foo: file:/../local-dependencies
+  bar: file:/../local-dependencies
+  baz:
+    location: file:/../local-dependencies
+    namespace: false
