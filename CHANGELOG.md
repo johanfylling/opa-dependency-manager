@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [unreleased]
+## [0.3.0]
 
 - Flattened dependency directory structure ([#21](https://github.com/johanfylling/opa-dependency-manager/issues/21))
 - Added `list source` command for enumerating source directories
