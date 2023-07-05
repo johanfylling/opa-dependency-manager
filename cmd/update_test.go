@@ -186,7 +186,11 @@ func mustReadFile(path ...string) *string {
 	return &s
 }
 
-func cleanup(projectDir string) {
+func cleanup(projectDir string, files ...string) {
 	dotOpaDir := filepath.Join(projectDir, ".opa")
 	_ = os.RemoveAll(dotOpaDir)
+
+	for _, file := range files {
+		_ = os.RemoveAll(filepath.Join(projectDir, file))
+	}
 }
