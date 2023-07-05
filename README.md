@@ -5,12 +5,12 @@ ODM is a tool for managing dependencies for [Open Policy Agent](https://www.open
 __NOTE__: This is an experimental project not officially supported by the OPA team or Styra. 
 
 ```bash
-odm init my_project
-cd my_project
-odm dep git+https://github.com/anderseknert/rego-test-assertions
-mkdir src
+$ odm init my_project
+$ cd my_project
+$ odm dep git+https://github.com/anderseknert/rego-test-assertions
+$ mkdir src
 
-cat <<EOF > src/policy.rego
+$ cat <<EOF > src/policy.rego
 package main
 
 import data.test.assert
@@ -22,8 +22,7 @@ test_foo {
 }
 EOF
 
-odm update
-odm test
+$ odm test
 ```
 
 An example project can be found [here](https://github.com/johanfylling/odm-example-project).
@@ -35,13 +34,13 @@ Where you have your `.rego` project/files.
 ### Setup new project
 
 ```bash
-odm init [project name]
+$ odm init [project name]
 ```
 
 ### Add a dependency
 
 ```bash
-odm depend <dependency name> <dependency path>
+$ odm depend <dependency name> <dependency path>
 ```
 
 In `opa.project`:
@@ -80,14 +79,14 @@ Examples:
 ### Update dependencies
 
 ```bash
-odm update
+$ odm update
 ```
 
 ### Evaluating policies
 
 Example:
 ```bash
-odm eval -- 'data.main.allow'
+$ odm eval -- 'data.main.allow'
 ```
 
 if a `source` folder is specified in `opa.project`, it will be automatically included in the evaluation.
@@ -96,7 +95,7 @@ if a `source` folder is specified in `opa.project`, it will be automatically inc
 
 Example:
 ```bash
-odm test -- -d policy.rego
+$ odm test -- -d policy.rego
 ```
 
 if a `source` folder is specified in `opa.project`, it will be automatically included in the evaluation.
@@ -126,12 +125,12 @@ utils
 ```
 
 Transitive dependencies will be namespaced as well.
-Any transitive dependency already namespaced by its enclosing dependency project will have it's packages prefixed by the namespace assigned by the enclosing project, and then by the namespace defined in the main project, recursively.
+Any transitive dependency already namespaced by its enclosing dependency project will have its packages prefixed by the namespace assigned by the enclosing project, and then by the namespace defined in the main project, recursively.
 
 ### Custom namespace
 
 ```bash
-odm dep my_dep file:/path/to/dependency -n mynamespace
+$ odm dep my_dep file:/path/to/dependency -n mynamespace
 ```
 
 In `opa.project`:
@@ -146,7 +145,7 @@ dependencies:
 ### Disabling namespacing
 
 ```bash
-odm dep my_dep file:/path/to/dependency --no-namespace
+$ odm dep my_dep file:/path/to/dependency --no-namespace
 ```
 
 In `opa.project`:
@@ -173,22 +172,16 @@ dependencies:
 
 ### Attributes
 
-| Attribute                       | Type             | Default                 | Description                                                                                                                                                           |
-|---------------------------------|------------------|-------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `name`                          | `string`         | none                    | The name of the project.                                                                                                                                              |
-| `source`                        | `string`         | none                    | The path to the source folder. If specified, the source folder will be automatically included in the `eval` and `test` commands.                                      |
-| `tests`                         | `string`         | none                    | The path to the test folder. If specified, the test folder will be automatically included in the `test` command.                                                      |
-| `dependencies`                  | `map`            |                         | A map of dependency declaration, keyed by their name.                                                                                                                 |
-| `dependencies.<name>`           | `map`, `string`  | none                    | A dependency declaration. A short form is supported, where the dependency value is its location as a string.                                                          |
-| `dependencies.<name>.location`  | `string`         | none                    | The location of the dependency.                                                                                                                                       |
-| `dependencies.<name>.namespace` | `string`, `bool` | `true`                  | If a `string`: the namespace to use for the dependency.  If a `bool`: if `true`, use the dependency `name` as namespace; if `false`, don't namesapace the dependency. |
-| `build`                         | `map`            |                         | Settings for building bundles.                                                                                                                                        |
-| `build.output`                  | `string`         | `./build/bundle.tar.gz` | The location of the target bundle.                                                                                                                                    |
-| `build.target`                  | `string`         | `rego`                  | The target bundle format. E.g. `rego`, `wasm`, or `plan`                                                                                                              |
-| `build.entrypoints`             | `[]string`       | `[]`                    | List of entrypoints.                                                                                                                                                  |
-
-## Building
-
-```bash
-go build
-```
+| Attribute                       | Type                 | Default                 | Description                                                                                                                                                                                                 |
+|---------------------------------|----------------------|-------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `name`                          | `string`             | none                    | The name of the project.                                                                                                                                                                                    |
+| `source`                        | `string`, `[]string` | none                    | The path to the source folder. If specified, the source directory will be automatically included in the `eval` and `test` commands. Can either be the path of a single directory, or a list of directories. |
+| `tests`                         | `string`, `[]string` | none                    | The path to the test folder. If specified, the test directory will be automatically included in the `test` command. Can either be the path of a single directory, or a list of directories.                 |
+| `dependencies`                  | `map`                |                         | A map of dependency declaration, keyed by their name.                                                                                                                                                       |
+| `dependencies.<name>`           | `map`, `string`      | none                    | A dependency declaration. A short form is supported, where the dependency value is its location as a string.                                                                                                |
+| `dependencies.<name>.location`  | `string`             | none                    | The location of the dependency.                                                                                                                                                                             |
+| `dependencies.<name>.namespace` | `string`, `bool`     | `true`                  | If a `string`: the namespace to use for the dependency.  If a `bool`: if `true`, use the dependency `name` as namespace; if `false`, don't namesapace the dependency.                                       |
+| `build`                         | `map`                |                         | Settings for building bundles.                                                                                                                                                                              |
+| `build.output`                  | `string`             | `./build/bundle.tar.gz` | The location of the target bundle.                                                                                                                                                                          |
+| `build.target`                  | `string`             | `rego`                  | The target bundle format. E.g. `rego`, `wasm`, or `plan`                                                                                                                                                    |
+| `build.entrypoints`             | `[]string`           | `[]`                    | List of entrypoints.                                                                                                                                                                                        |
