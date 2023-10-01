@@ -14,15 +14,17 @@ import (
 const (
 	dotOpaDir = ".opa"
 	depDir    = "dependencies"
+	repoDir   = "repositories"
 )
 
 type Project struct {
-	Name         string       `yaml:"name,omitempty"`
-	Version      string       `yaml:"version,omitempty"`
-	SourceDirs   []string     `yaml:"source,omitempty"`
-	TestDirs     []string     `yaml:"tests,omitempty"`
-	Dependencies Dependencies `yaml:"dependencies,omitempty"`
-	Build        Build        `yaml:"build,omitempty"`
+	Name         string
+	Version      string
+	SourceDirs   []string
+	TestDirs     []string
+	Dependencies Dependencies
+	Build        Build
+	Repositories []Repository
 	filePath     string
 }
 
@@ -33,6 +35,7 @@ type ProjectSerialization struct {
 	Test         interface{}  `yaml:"tests,omitempty"`
 	Dependencies Dependencies `yaml:"dependencies,omitempty"`
 	Build        Build        `yaml:"build,omitempty"`
+	Repositories []string     `yaml:"repositories,omitempty"`
 }
 
 type Build struct {
@@ -59,15 +62,15 @@ func (ds *Dependencies) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	*ds = make(map[string]Dependency)
 	for k, v := range raw {
 		var info DependencyInfo
-		switch v.(type) {
+		switch v := v.(type) {
 		case string:
 			info = DependencyInfo{
-				Location:  v.(string),
+				Location:  Location(v),
 				Namespace: k,
 			}
 		case map[string]interface{}:
 			var namespace = ""
-			if ns := v.(map[string]interface{})["namespace"]; ns != nil {
+			if ns := v["namespace"]; ns != nil {
 				switch ns := ns.(type) {
 				case bool:
 					if ns {
@@ -83,7 +86,7 @@ func (ds *Dependencies) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				namespace = k
 			}
 			info = DependencyInfo{
-				Location:  v.(map[string]interface{})["location"].(string),
+				Location:  Location(v["location"].(string)),
 				Namespace: namespace,
 			}
 		}
@@ -99,7 +102,7 @@ func (ds *Dependencies) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func (ds *Dependencies) MarshalYAML() (interface{}, error) {
 	depMap := make(map[string]Dependency)
 	for _, dep := range *ds {
-		depMap[dep.Location] = dep
+		depMap[dep.Location.String()] = dep
 	}
 
 	return depMap, nil
@@ -127,26 +130,12 @@ func (p *Project) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("invalid tests: %w", err)
 	}
 
-	return nil
-}
+	p.Repositories, err = unmarshalRepositories(raw.Repositories)
+	if err != nil {
+		return fmt.Errorf("invalid repository: %w", err)
+	}
 
-func (p *Project) MarshalYAML() (interface{}, error) {
-	var raw ProjectSerialization
-	raw.Name = p.Name
-	raw.Version = p.Version
-	raw.Dependencies = p.Dependencies
-	raw.Build = p.Build
-	if len(p.SourceDirs) == 1 {
-		raw.Source = p.SourceDirs[0]
-	} else if len(p.SourceDirs) > 1 {
-		raw.Source = p.SourceDirs
-	}
-	if len(p.TestDirs) == 1 {
-		raw.Test = p.TestDirs[0]
-	} else if len(p.TestDirs) > 1 {
-		raw.Test = p.TestDirs
-	}
-	return raw, nil
+	return nil
 }
 
 func unmarshalDirs(raw interface{}) ([]string, error) {
@@ -169,6 +158,54 @@ func unmarshalDirs(raw interface{}) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("invalid dir type %T", t)
 	}
+}
+
+func unmarshalRepositories(raw interface{}) ([]Repository, error) {
+	switch t := raw.(type) {
+	case nil:
+		return nil, nil
+	case string:
+		return []Repository{{Location: Location(t)}}, nil
+	case []string:
+		repos := make([]Repository, len(t))
+		for i, v := range t {
+			repos[i] = Repository{Location: Location(v)}
+		}
+		return repos, nil
+	default:
+		return nil, fmt.Errorf("invalid repository type %T", t)
+	}
+}
+
+func (p *Project) MarshalYAML() (interface{}, error) {
+	var raw ProjectSerialization
+	raw.Name = p.Name
+	raw.Version = p.Version
+	raw.Dependencies = p.Dependencies
+	raw.Build = p.Build
+
+	if len(p.SourceDirs) == 1 {
+		raw.Source = p.SourceDirs[0]
+	} else if len(p.SourceDirs) > 1 {
+		raw.Source = p.SourceDirs
+	}
+
+	if len(p.TestDirs) == 1 {
+		raw.Test = p.TestDirs[0]
+	} else if len(p.TestDirs) > 1 {
+		raw.Test = p.TestDirs
+	}
+
+	raw.Repositories = make([]string, len(p.Repositories))
+	for _, repo := range p.Repositories {
+		if repoYaml, err := repo.Location.MarshalYAML(); err != nil {
+			return nil, err
+		} else {
+			raw.Repositories = append(raw.Repositories, repoYaml.(string))
+		}
+	}
+
+	return raw, nil
 }
 
 func (p *Project) SetDependency(name string, info DependencyInfo) {
@@ -227,10 +264,20 @@ func (p *Project) Update() error {
 }
 
 func (p *Project) update(rootDir string) error {
+	if len(p.Repositories) > 0 {
+		repoRootDir := repositoriesDir(rootDir)
+		for i, repo := range p.Repositories {
+			if err := repo.update(rootDir, repoRootDir); err != nil {
+				return fmt.Errorf("failed to update repository %d: %w", i+1, err)
+			}
+			p.Repositories[i] = repo
+		}
+	}
+
 	depRootDir := dependenciesDir(rootDir)
 
 	for name, dep := range p.Dependencies {
-		if err := dep.Update(rootDir, depRootDir); err != nil {
+		if err := dep.Update(p, rootDir, depRootDir); err != nil {
 			return fmt.Errorf("failed to update dependency %s: %w", name, err)
 		}
 		p.Dependencies[name] = dep
@@ -388,6 +435,10 @@ func normalizeProjectPath(path string) string {
 
 func dependenciesDir(root string) string {
 	return filepath.Join(root, dotOpaDir, depDir)
+}
+
+func repositoriesDir(root string) string {
+	return filepath.Join(root, dotOpaDir, repoDir)
 }
 
 func WalkDependencies(p *Project, f func(Dependency) error) error {

@@ -152,9 +152,10 @@ version: 0.0.1
 source: src
 `,
 			expected: &Project{
-				Name:       "test_project",
-				Version:    "0.0.1",
-				SourceDirs: []string{"src"},
+				Name:         "test_project",
+				Version:      "0.0.1",
+				SourceDirs:   []string{"src"},
+				Repositories: []Repository{},
 			},
 		},
 		{
@@ -166,10 +167,10 @@ dependencies:
     foo: file://dev/null
 `,
 			expected: &Project{
-				Name:       "test_project",
-				Version:    "0.0.1",
-				SourceDirs: []string{"src"},
-
+				Name:         "test_project",
+				Version:      "0.0.1",
+				SourceDirs:   []string{"src"},
+				Repositories: []Repository{},
 				Dependencies: Dependencies{
 					"foo": Dependency{
 						Name: "foo",
@@ -191,10 +192,10 @@ dependencies:
         location: file://dev/null
 `,
 			expected: &Project{
-				Name:       "test_project",
-				Version:    "0.0.1",
-				SourceDirs: []string{"src"},
-
+				Name:         "test_project",
+				Version:      "0.0.1",
+				SourceDirs:   []string{"src"},
+				Repositories: []Repository{},
 				Dependencies: Dependencies{
 					"foo": Dependency{
 						Name: "foo",
@@ -217,9 +218,10 @@ dependencies:
         namespace: false
 `,
 			expected: &Project{
-				Name:       "test_project",
-				Version:    "0.0.1",
-				SourceDirs: []string{"src"},
+				Name:         "test_project",
+				Version:      "0.0.1",
+				SourceDirs:   []string{"src"},
+				Repositories: []Repository{},
 				Dependencies: Dependencies{
 					"foo": Dependency{
 						Name: "foo",
@@ -242,9 +244,10 @@ dependencies:
         namespace: bar
 `,
 			expected: &Project{
-				Name:       "test_project",
-				Version:    "0.0.1",
-				SourceDirs: []string{"src"},
+				Name:         "test_project",
+				Version:      "0.0.1",
+				SourceDirs:   []string{"src"},
+				Repositories: []Repository{},
 				Dependencies: Dependencies{
 					"foo": Dependency{
 						Name: "foo",
@@ -265,9 +268,10 @@ dependencies:
     foo: git+https://example.com/my/repo
 `,
 			expected: &Project{
-				Name:       "test_project",
-				Version:    "0.0.1",
-				SourceDirs: []string{"src"},
+				Name:         "test_project",
+				Version:      "0.0.1",
+				SourceDirs:   []string{"src"},
+				Repositories: []Repository{},
 				Dependencies: Dependencies{
 					"foo": Dependency{
 						Name: "foo",

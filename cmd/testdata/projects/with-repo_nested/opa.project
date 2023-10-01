@@ -1,0 +1,7 @@
+name: With Repo (nested)
+source: src
+dependencies:
+  no_deps: no-dependencies
+  with_repo: file:/../with-repo
+repositories:
+  - file:/../../repositories/basic

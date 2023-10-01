@@ -114,6 +114,61 @@ test_allow {
 `),
 			},
 		},
+		{
+			name:       "With repository",
+			projectDir: filepath.Join(rootDir, "testdata", "projects", "with-repo"),
+			expectedFiles: map[string]*string{
+				filepath.Join(rootDir, "testdata", "projects", "with-repo", ".opa", "dependencies", proj.DepId("no_deps", "no-dependencies"), "opa.project"): mustReadFile(rootDir, "testdata", "projects", "no-dependencies", "opa.project"),
+				filepath.Join(rootDir, "testdata", "projects", "with-repo", ".opa", "dependencies", proj.DepId("no_deps", "no-dependencies"), "src", "policy.rego"): ptr(`package no_deps.test
+
+allow {
+	1 + 1 == 2
+}
+`),
+				filepath.Join(rootDir, "testdata", "projects", "with-repo", ".opa", "dependencies", proj.DepId("no_deps", "no-dependencies"), "tst", "tests.rego"): ptr(`package no_deps.test
+
+test_allow {
+	allow
+}
+`),
+			},
+		},
+		{
+			name:       "With repository (nested)",
+			projectDir: filepath.Join(rootDir, "testdata", "projects", "with-repo_nested"),
+			expectedFiles: map[string]*string{
+				// with_repo
+				filepath.Join(rootDir, "testdata", "projects", "with-repo_nested", ".opa", "dependencies", proj.DepId("with_repo", "file:/../with-repo"), "opa.project"): mustReadFile(rootDir, "testdata", "projects", "with-repo", "opa.project"),
+				// no_deps
+				filepath.Join(rootDir, "testdata", "projects", "with-repo_nested", ".opa", "dependencies", proj.DepId("no_deps", "no-dependencies"), "opa.project"): mustReadFile(rootDir, "testdata", "projects", "no-dependencies", "opa.project"),
+				filepath.Join(rootDir, "testdata", "projects", "with-repo_nested", ".opa", "dependencies", proj.DepId("no_deps", "no-dependencies"), "src", "policy.rego"): ptr(`package no_deps.test
+
+allow {
+	1 + 1 == 2
+}
+`),
+				filepath.Join(rootDir, "testdata", "projects", "with-repo_nested", ".opa", "dependencies", proj.DepId("no_deps", "no-dependencies"), "tst", "tests.rego"): ptr(`package no_deps.test
+
+test_allow {
+	allow
+}
+`),
+				// with_repo.no_deps
+				filepath.Join(rootDir, "testdata", "projects", "with-repo_nested", ".opa", "dependencies", proj.DepId("with_repo.no_deps", "no-dependencies"), "opa.project"): mustReadFile(rootDir, "testdata", "projects", "no-dependencies", "opa.project"),
+				filepath.Join(rootDir, "testdata", "projects", "with-repo_nested", ".opa", "dependencies", proj.DepId("with_repo.no_deps", "no-dependencies"), "src", "policy.rego"): ptr(`package with_repo.no_deps.test
+
+allow {
+	1 + 1 == 2
+}
+`),
+				filepath.Join(rootDir, "testdata", "projects", "with-repo_nested", ".opa", "dependencies", proj.DepId("with_repo.no_deps", "no-dependencies"), "tst", "tests.rego"): ptr(`package with_repo.no_deps.test
+
+test_allow {
+	allow
+}
+`),
+			},
+		},
 	}
 
 	for _, tc := range tests {

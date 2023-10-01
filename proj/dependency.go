@@ -1,14 +1,8 @@
-// Copyright 2023 The OPA Authors.  All rights reserved.
-// Use of this source code is governed by an Apache2
-// license that can be found in the LICENSE file.
-
 package proj
 
 import (
 	"crypto/sha256"
 	"fmt"
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/johanfylling/odm/printer"
 	"github.com/johanfylling/odm/utils"
 	"os"
@@ -25,8 +19,8 @@ type Dependency struct {
 }
 
 type DependencyInfo struct {
-	Location  string `yaml:"location"`
-	Namespace string `yaml:"namespace,omitempty"`
+	Location  Location `yaml:"location"`
+	Namespace string   `yaml:"namespace,omitempty"`
 }
 
 func (d Dependency) MarshalYAML() (interface{}, error) {
@@ -51,7 +45,7 @@ func (d Dependency) MarshalYAML() (interface{}, error) {
 }
 
 func (d Dependency) id() string {
-	return DepId(d.fullNamespace(), d.Location)
+	return DepId(d.fullNamespace(), d.Location.String())
 }
 
 func DepId(namespace, location string) string {
@@ -65,7 +59,7 @@ func (d Dependency) dir(rootDir string) string {
 	return filepath.Join(rootDir, d.id())
 }
 
-func (d Dependency) Update(rootDir, depsRootDir string) error {
+func (d Dependency) Update(parentProject *Project, rootDir, depsRootDir string) error {
 	targetDir := d.dir(depsRootDir)
 
 	if err := os.RemoveAll(targetDir); err != nil {
@@ -73,26 +67,24 @@ func (d Dependency) Update(rootDir, depsRootDir string) error {
 	}
 
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return fmt.Errorf("failed to create target directory %s: %w", targetDir, err)
+	}
+
+	printer.Debug("Updating %s dependency: %s", d.Location.Type(), d.Namespace)
+	if !d.Location.IsSupported() {
+		var lib *Location
+		for _, repo := range parentProject.Repositories {
+			if lib = repo.Libraries.Find(d.Location.String()); lib != nil {
+				break
+			}
+		}
+		if lib == nil {
+			return fmt.Errorf("unsupported location type: %s", d.Location.String())
+		}
+		d.Location = *lib
+	}
+	if err := d.Location.Clone(rootDir, targetDir); err != nil {
 		return err
-	}
-
-	if err := os.MkdirAll(targetDir, 0755); err != nil {
-		return fmt.Errorf("failed to create destination directory %s: %w", targetDir, err)
-	}
-
-	if strings.HasPrefix(d.Location, "git+") {
-		printer.Debug("Updating git dependency %s", d.Namespace)
-		if err := d.updateFromGit(targetDir); err != nil {
-			return err
-		}
-	} else if strings.HasPrefix(d.Location, "file:") {
-		printer.Debug("Updating git dependency %s", d.Namespace)
-		printer.Debug("Updating transitive dependencies for %s", d.Namespace)
-		if err := d.updateFromLocal(rootDir, targetDir); err != nil {
-			return err
-		}
-	} else {
-		return fmt.Errorf("unsupported dependency location: %s", d.Location)
 	}
 
 	depProjectFile := fmt.Sprintf("%s/opa.project", targetDir)
@@ -118,6 +110,8 @@ func (d Dependency) Update(rootDir, depsRootDir string) error {
 		}
 		dirs = append(dirs, d.TestDirs()...)
 		dirs = utils.FilterExistingFiles(dirs)
+
+		//namespace = strings.ReplaceAll(namespace, "-", "_")
 
 		if len(dirs) > 0 {
 			opa := utils.NewOpa(dirs...)
@@ -147,64 +141,6 @@ func (d Dependency) Load(rootDir, targetDir string) (*Dependency, error) {
 		return nil, fmt.Errorf("failed to update transitive dependencies for %s: %w", d.Namespace, err)
 	}
 	return &d, nil
-}
-
-func (d Dependency) updateFromLocal(rootDir, targetDir string) error {
-	sourceLocation, err := utils.NormalizeFilePath(d.Location)
-	if err != nil {
-		return err
-	}
-
-	if !filepath.IsAbs(sourceLocation) {
-		sourceLocation = filepath.Join(rootDir, sourceLocation)
-	}
-
-	if !utils.FileExists(sourceLocation) {
-		return fmt.Errorf("dependency %s does not exist", sourceLocation)
-	}
-
-	if !utils.IsDir(sourceLocation) && utils.GetFileName(sourceLocation) == "opa.project" {
-		sourceLocation = utils.GetParentDir(sourceLocation)
-	}
-
-	// Ignore empty files, as an empty module will break the 'opa refactor' command
-	if err := utils.CopyAll(sourceLocation, targetDir, []string{".opa"}, true); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (d Dependency) updateFromGit(targetDir string) error {
-	url, tag, err := parseGitUrl(d.Location)
-	if err != nil {
-		return err
-	}
-
-	repo, err := git.PlainClone(targetDir, false, &git.CloneOptions{
-		URL:      url,
-		Progress: printer.DebugPrinter(),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to clone git repository %s: %w", url, err)
-	}
-
-	if tag != "" {
-		w, err := repo.Worktree()
-		if err != nil {
-			return fmt.Errorf("failed to get worktree for git repository %s: %w", url, err)
-		}
-
-		if err := w.Checkout(&git.CheckoutOptions{
-			Branch: plumbing.NewTagReferenceName(tag),
-		}); err != nil {
-			return fmt.Errorf("failed to checkout tag '%s' for git repository %s: %w", tag, url, err)
-		}
-	} else {
-		printer.Debug("No tag specified, using HEAD")
-	}
-
-	return nil
 }
 
 func parseGitUrl(fullUrl string) (url string, tag string, err error) {
@@ -241,13 +177,23 @@ func (d Dependency) loadTransitive(rootDir, targetDir string) error {
 func (d Dependency) updateTransitive(rootDir, targetDir string) error {
 	printer.Debug("Updating transitive dependencies for %s (%s)", d.Namespace, d.id())
 
-	if d.Project != nil {
-		for name, dep := range d.Project.Dependencies {
+	if p := d.Project; p != nil {
+		if len(p.Repositories) > 0 {
+			repoRootDir := repositoriesDir(rootDir)
+			for i, repo := range p.Repositories {
+				if err := repo.update(rootDir, repoRootDir); err != nil {
+					return fmt.Errorf("failed to update repository %d: %w", i+1, err)
+				}
+				p.Repositories[i] = repo
+			}
+		}
+
+		for name, dep := range p.Dependencies {
 			dep.ParentDependency = &d
-			if err := dep.Update(rootDir, targetDir); err != nil {
+			if err := dep.Update(p, rootDir, targetDir); err != nil {
 				return err
 			}
-			d.Project.Dependencies[name] = dep
+			p.Dependencies[name] = dep
 		}
 	}
 
