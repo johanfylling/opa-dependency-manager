@@ -162,6 +162,7 @@ dependencies:
 ODM Supports library repositories, which are essentially a registry of curated libraries a project can depend on.
 When a dependency is sourced through a repository, its `location` is some arbitrary string defined by the registry.
 Apart from being a convenient way to curate libraries, this also allows dependencies to be located by a human-readable string (depends on the registry, of course), rather than some URL. It also makes it somewhat easier to move a library, as its location isn't a direct reference to it's actual location on the internet.
+See [Repositories](REPOSITORIES.md) for more information.
 
 ## The `opa.project` file
 
