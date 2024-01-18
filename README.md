@@ -7,7 +7,8 @@ __NOTE__: This is an experimental project not officially supported by the OPA te
 ```bash
 $ odm init my_project
 $ cd my_project
-$ odm depend test-assertions git+https://github.com/anderseknert/rego-test-assertions --no-namespace
+$ odm depend --no-namespace rego-test-assertions \
+      git+https://github.com/anderseknert/rego-test-assertions
 $ mkdir src
 
 $ cat <<EOF > src/policy.rego
