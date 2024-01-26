@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+- Support for dependency repositories ([#11](https://github.com/johanfylling/opa-dependency-manager/issues/11))
+
 ## [0.3.0]
 
 - Flattened dependency directory structure ([#21](https://github.com/johanfylling/opa-dependency-manager/issues/21))

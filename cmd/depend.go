@@ -72,7 +72,7 @@ func doAddDependency(name string, location string, namespace string, projectPath
 
 	dependency := proj.DependencyInfo{
 		Namespace: namespace,
-		Location:  location,
+		Location:  proj.Location(location),
 	}
 
 	project.SetDependency(name, dependency)

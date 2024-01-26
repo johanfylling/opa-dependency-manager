@@ -1,0 +1,6 @@
+name: With Repo
+source: src
+dependencies:
+  no_deps: no-dependencies
+repositories:
+  - file:/../../repositories/basic
